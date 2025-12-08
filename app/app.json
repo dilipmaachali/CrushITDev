@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "CrushIT",
+    "slug": "crushit",
+    "version": "1.0.0",
+    "sdkVersion": "54.0.0",
+    "entryPoint": "./index.js",
+    "orientation": "portrait",
+    "runtimeVersion": "54.0.0",
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTabletMode": true,
+      "bundleIdentifier": "com.crushit.app"
+    },
+    "android": {
+      "package": "com.crushit.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#5A00FF"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": []
+  }
+}

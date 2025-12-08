@@ -1,0 +1,35 @@
+import express from 'express';
+import cors from 'cors';
+import { arenas, products, petcarePartners, users } from '@/data';
+
+const app = express();
+const PORT = process.env.PORT || 4000;
+
+app.use(cors());
+app.use(express.json());
+
+app.get('/', (_req, res) => {
+  res.json({ status: 'ok', service: 'CrushIT Backend' });
+});
+
+app.get('/arenas', (_req, res) => {
+  res.json(arenas);
+});
+
+app.get('/products', (_req, res) => {
+  res.json(products);
+});
+
+app.get('/petcare', (_req, res) => {
+  res.json(petcarePartners);
+});
+
+app.get('/user/:id', (req, res) => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json(user);
+});
+
+app.listen(PORT, () => {
+  console.log(`CrushIT backend running on http://localhost:${PORT}`);
+});
