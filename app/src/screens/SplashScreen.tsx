@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Image, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
 import { colors } from '@/theme';
 
 const { width, height } = Dimensions.get('window');
@@ -60,11 +60,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
           },
         ]}
       >
-        <Image
-          source={require('../../../CrushItLogo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+        <Text style={styles.logo}>🎮</Text>
       </Animated.View>
 
       <Animated.View
@@ -98,8 +94,8 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   logo: {
-    width: width * 0.6,
-    height: height * 0.25,
+    fontSize: 100,
+    fontWeight: 'bold',
   },
   textContainer: {
     alignItems: 'center',
