@@ -327,6 +327,8 @@ export default function RootNavigator() {
 
   if (showSplash) {
     return <SplashScreen onFinish={handleSplashFinish} />;
+  }
+
   const { galaxyThemeEnabled } = useTheme();
 
   if (isLoading) {
