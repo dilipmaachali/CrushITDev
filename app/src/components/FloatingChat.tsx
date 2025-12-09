@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Dimensions } from 'react-native';
 import { colors } from '@/theme';
-import ChatScreen from '@/screens/ChatScreen';
 
 const FloatingChat = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -30,14 +29,34 @@ const FloatingChat = () => {
         <View style={styles.modalContainer}>
           {/* Header */}
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Chat</Text>
+            <Text style={styles.modalTitle}>Chat Support</Text>
             <TouchableOpacity onPress={() => setIsOpen(false)} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Chat Content */}
-          <ChatScreen />
+          {/* Chat Content - Simple Messages */}
+          <View style={styles.chatContent}>
+            <View style={styles.messageBubbleOther}>
+              <Text style={styles.messageText}>👋 Hi! How can we help you today?</Text>
+            </View>
+            <View style={styles.messageBubbleOther}>
+              <Text style={styles.messageText}>Ask us anything about booking, games, or our services!</Text>
+            </View>
+          </View>
+
+          {/* Chat Input */}
+          <View style={styles.inputContainer}>
+            <TouchableOpacity style={styles.attachButton}>
+              <Text style={styles.attachIcon}>📎</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.inputField}>
+              <Text style={styles.inputPlaceholder}>Type a message...</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.sendButton}>
+              <Text style={styles.sendIcon}>➤</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </>
@@ -113,6 +132,69 @@ const styles = StyleSheet.create({
   closeButtonText: {
     fontSize: 20,
     color: colors.text.primary,
+  },
+  chatContent: {
+    flex: 1,
+    padding: 16,
+    justifyContent: 'flex-end',
+  },
+  messageBubbleOther: {
+    backgroundColor: colors.surface,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    maxWidth: '80%',
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  messageText: {
+    fontSize: 14,
+    color: colors.text.primary,
+    lineHeight: 20,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: 8,
+  },
+  attachButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachIcon: {
+    fontSize: 20,
+  },
+  inputField: {
+    flex: 1,
+    backgroundColor: colors.background,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    justifyContent: 'center',
+  },
+  inputPlaceholder: {
+    fontSize: 14,
+    color: colors.text.secondary,
+  },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendIcon: {
+    fontSize: 18,
+    color: colors.white,
   },
 });
 

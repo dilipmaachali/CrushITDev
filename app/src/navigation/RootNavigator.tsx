@@ -294,6 +294,7 @@ export default function RootNavigator() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
+  const { galaxyThemeEnabled } = useTheme();
 
   useEffect(() => {
     bootstrapAsync();
@@ -328,8 +329,6 @@ export default function RootNavigator() {
   if (showSplash) {
     return <SplashScreen onFinish={handleSplashFinish} />;
   }
-
-  const { galaxyThemeEnabled } = useTheme();
 
   if (isLoading) {
     return null;
