@@ -6,12 +6,18 @@ import { AuthService } from '@/services/AuthService';
 import PaymentService from '@/services/PaymentService';
 import LocationService from '@/services/LocationService';
 import { authMiddleware, errorHandler, AuthenticatedRequest } from '@/middleware/auth';
+import gamesRouter from '@/routes/games';
+import playersRouter from '@/routes/players';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
+
+// Mount routers
+app.use('/api/games', gamesRouter);
+app.use('/api/players', playersRouter);
 
 // Health & Status
 app.get('/', (_req, res) => {

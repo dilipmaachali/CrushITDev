@@ -20,8 +20,14 @@ import {
   ScoringScreen,
   ScoreEntryScreen,
   GameSummaryScreen,
+  GamesScreen,
+  CreateGameScreen,
+  ManagePlayersScreen,
+  FindPlayersScreen,
 } from '@/screens';
 import { FloatingChat } from '@/components';
+import { GalaxyBackground } from '@/components/GalaxyBackground';
+import { useTheme } from '@/contexts/ThemeContext';
 import { colors } from '@/theme';
 
 const Stack = createNativeStackNavigator();
@@ -139,6 +145,40 @@ function ScoringStack() {
   );
 }
 
+// Games Stack (New feature)
+function GamesStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: true,
+        headerBackTitleVisible: false,
+        headerTintColor: colors.primary,
+      }}
+    >
+      <Stack.Screen
+        name="GamesList"
+        component={GamesScreen}
+        options={{ headerTitle: 'Scheduled Games' }}
+      />
+      <Stack.Screen
+        name="CreateGame"
+        component={CreateGameScreen}
+        options={{ headerTitle: 'Create Game' }}
+      />
+      <Stack.Screen
+        name="ManagePlayers"
+        component={ManagePlayersScreen}
+        options={{ headerTitle: 'Manage Players' }}
+      />
+      <Stack.Screen
+        name="FindPlayers"
+        component={FindPlayersScreen}
+        options={{ headerTitle: 'Find Players' }}
+      />
+    </Stack.Navigator>
+  );
+}
+
 // Profile Stack
 function ProfileStack() {
   return (
@@ -193,6 +233,14 @@ function TabNavigator() {
         options={{
           tabBarLabel: 'Arenas',
           tabBarIcon: ({ color }) => <Icon name="📍" color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="GamesTab"
+        component={GamesStack}
+        options={{
+          tabBarLabel: 'Games',
+          tabBarIcon: ({ color }) => <Icon name="🎮" color={color} />,
         }}
       />
       <Tab.Screen
@@ -279,48 +327,51 @@ export default function RootNavigator() {
 
   if (showSplash) {
     return <SplashScreen onFinish={handleSplashFinish} />;
-  }
+  const { galaxyThemeEnabled } = useTheme();
 
   if (isLoading) {
     return null;
   }
 
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
-      {isLoggedIn ? (
-        <Stack.Group>
-          <Stack.Screen name="MainApp" component={MainNavigatorWithChat} />
-          <Stack.Group screenOptions={{ presentation: 'modal' }}>
-            <Stack.Screen
-              name="Community"
-              component={CommunityScreen}
-              options={{
-                headerShown: true,
-                headerTitle: 'Community',
-                headerTintColor: colors.primary,
-              }}
-            />
-            <Stack.Screen
-              name="Notifications"
-              component={NotificationsScreen}
-              options={{
-                headerShown: true,
-                headerTitle: 'Notifications',
-                headerTintColor: colors.primary,
-              }}
-            />
+    <>
+      {galaxyThemeEnabled && <GalaxyBackground />}
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+        }}
+      >
+        {isLoggedIn ? (
+          <Stack.Group>
+            <Stack.Screen name="MainApp" component={MainNavigatorWithChat} />
+            <Stack.Group screenOptions={{ presentation: 'modal' }}>
+              <Stack.Screen
+                name="Community"
+                component={CommunityScreen}
+                options={{
+                  headerShown: true,
+                  headerTitle: 'Community',
+                  headerTintColor: colors.primary,
+                }}
+              />
+              <Stack.Screen
+                name="Notifications"
+                component={NotificationsScreen}
+                options={{
+                  headerShown: true,
+                  headerTitle: 'Notifications',
+                  headerTintColor: colors.primary,
+                }}
+              />
+            </Stack.Group>
           </Stack.Group>
-        </Stack.Group>
-      ) : (
-        <Stack.Group>
-          <Stack.Screen name="Auth" component={AuthStack} />
-        </Stack.Group>
-      )}
-    </Stack.Navigator>
+        ) : (
+          <Stack.Group>
+            <Stack.Screen name="Auth" component={AuthStack} />
+          </Stack.Group>
+        )}
+      </Stack.Navigator>
+    </>
   );
 }
 

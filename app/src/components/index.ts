@@ -6,3 +6,4 @@ export { ChatBubble } from './ChatBubble';
 export { ChatInput } from './ChatInput';
 export { QuickAction } from './QuickAction';
 export { default as FloatingChat } from './FloatingChat';
+export { GalaxyBackground } from './GalaxyBackground';

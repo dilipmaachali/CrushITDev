@@ -8,10 +8,12 @@ import {
   Alert,
   TextInput,
   Modal,
+  Switch,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '@/theme';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function ProfileScreen({ navigation }: any) {
   const [userName, setUserName] = useState('Test User');
@@ -24,6 +26,7 @@ export default function ProfileScreen({ navigation }: any) {
   const [showPartners, setShowPartners] = useState(false);
   const [showOrders, setShowOrders] = useState(false);
   const [orderHistory, setOrderHistory] = useState<any[]>([]);
+  const { galaxyThemeEnabled, toggleGalaxyTheme } = useTheme();
 
   useFocusEffect(
     React.useCallback(() => {
@@ -131,6 +134,13 @@ export default function ProfileScreen({ navigation }: any) {
       title: 'Settings',
       items: [
         {
+          icon: '🌌',
+          title: 'Galaxy Theme',
+          subtitle: galaxyThemeEnabled ? 'Enabled - Deep space vibes' : 'Disabled - Default theme',
+          onPress: () => {},
+          isSwitch: true,
+        },
+        {
           icon: '⚙️',
           title: 'Preferences & Privacy',
           subtitle: 'Manage your preferences',
@@ -214,6 +224,7 @@ export default function ProfileScreen({ navigation }: any) {
               key={itemIndex}
               style={styles.menuItem}
               onPress={item.onPress}
+              activeOpacity={item.isSwitch ? 1 : 0.7}
             >
               <View style={styles.menuItemLeft}>
                 <Text style={styles.menuIcon}>{item.icon}</Text>
@@ -222,7 +233,16 @@ export default function ProfileScreen({ navigation }: any) {
                   <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
                 </View>
               </View>
-              <Text style={styles.menuArrow}>›</Text>
+              {item.isSwitch ? (
+                <Switch
+                  value={galaxyThemeEnabled}
+                  onValueChange={toggleGalaxyTheme}
+                  trackColor={{ false: '#767577', true: '#667eea' }}
+                  thumbColor={galaxyThemeEnabled ? '#764ba2' : '#f4f3f4'}
+                />
+              ) : (
+                <Text style={styles.menuArrow}>›</Text>
+              )}
             </TouchableOpacity>
           ))}
         </View>
