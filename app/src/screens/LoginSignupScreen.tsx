@@ -45,7 +45,8 @@ const LoginSignupScreen: React.FC<LoginSignupScreenProps> = ({ navigation }) => 
         await AsyncStorage.setItem('authToken', response.data.token);
         await AsyncStorage.setItem('userToken', response.data.token);
         await AsyncStorage.setItem('userEmail', response.data.user.email);
-        navigation.replace('MainApp');
+        await AsyncStorage.setItem('userId', response.data.user.id || response.data.user._id);
+        // App will automatically navigate via auth polling
       }
     } catch (error: any) {
       Alert.alert('Login Failed', error.response?.data?.error || 'Invalid credentials');
@@ -72,8 +73,9 @@ const LoginSignupScreen: React.FC<LoginSignupScreenProps> = ({ navigation }) => 
         await AsyncStorage.setItem('authToken', response.data.token);
         await AsyncStorage.setItem('userToken', response.data.token);
         await AsyncStorage.setItem('userEmail', response.data.user.email);
+        await AsyncStorage.setItem('userId', response.data.user.id || response.data.user._id);
         Alert.alert('Success', 'Account created successfully!');
-        navigation.replace('MainApp');
+        // App will automatically navigate via auth polling
       }
     } catch (error: any) {
       Alert.alert('Signup Failed', error.response?.data?.error || 'Registration failed');
@@ -87,23 +89,6 @@ const LoginSignupScreen: React.FC<LoginSignupScreenProps> = ({ navigation }) => 
       handleLogin();
     } else {
       handleSignup();
-    }
-  };
-
-  // Skip login for testing (remove credentials requirement)
-  const handleSkipLogin = async () => {
-    setLoading(true);
-    try {
-      // Set a test token to bypass authentication
-      const testToken = 'test-token-dev-mode';
-      await AsyncStorage.setItem('authToken', testToken);
-      await AsyncStorage.setItem('userToken', testToken);
-      await AsyncStorage.setItem('userEmail', 'test@crushit.app');
-      navigation.replace('MainApp');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to proceed');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -186,15 +171,6 @@ const LoginSignupScreen: React.FC<LoginSignupScreenProps> = ({ navigation }) => 
             ) : (
               <Text style={styles.submitButtonText}>{isLogin ? 'Sign In' : 'Create Account'}</Text>
             )}
-          </TouchableOpacity>
-
-          {/* Skip Login Button (for testing) */}
-          <TouchableOpacity
-            style={styles.skipButton}
-            onPress={handleSkipLogin}
-            disabled={loading}
-          >
-            <Text style={styles.skipButtonText}>Skip & Enter App</Text>
           </TouchableOpacity>
 
           {/* Toggle Login/Signup */}
@@ -317,20 +293,6 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 16,
     fontWeight: '700',
-  },
-  skipButton: {
-    backgroundColor: colors.lightGrey,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: colors.grey,
-  },
-  skipButtonText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
   },
   toggleLink: {
     alignItems: 'center',

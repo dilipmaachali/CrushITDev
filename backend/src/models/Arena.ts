@@ -1,7 +1,7 @@
 export interface Arena {
   id: string;
   name: string;
-  type: 'cricket' | 'football' | 'badminton' | 'ps5' | 'vr' | 'other';
+  type: 'cricket' | 'football' | 'badminton' | 'tennis' | 'basketball' | 'squash' | 'ps5' | 'vr' | 'other';
   description: string;
   location: {
     latitude: number;

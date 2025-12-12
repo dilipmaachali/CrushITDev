@@ -19,8 +19,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const loadThemePreference = async () => {
     try {
       const value = await AsyncStorage.getItem('galaxyThemeEnabled');
+      console.log('[ThemeContext] Loaded galaxy theme preference from storage:', value);
       if (value !== null) {
         setGalaxyThemeEnabled(value === 'true');
+        console.log('[ThemeContext] Galaxy theme enabled:', value === 'true');
       }
     } catch (error) {
       console.error('Error loading theme preference:', error);
@@ -30,8 +32,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const toggleGalaxyTheme = async () => {
     try {
       const newValue = !galaxyThemeEnabled;
+      console.log('[ThemeContext] Toggling galaxy theme:', galaxyThemeEnabled, '->', newValue);
       setGalaxyThemeEnabled(newValue);
       await AsyncStorage.setItem('galaxyThemeEnabled', newValue.toString());
+      console.log('[ThemeContext] Galaxy theme saved to storage:', newValue);
     } catch (error) {
       console.error('Error saving theme preference:', error);
     }

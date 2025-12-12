@@ -59,10 +59,15 @@ export default function ArenaDetailsScreen({ route, navigation }: any) {
       <TouchableOpacity
         style={styles.bookButton}
         onPress={() => {
-          console.log('Book Now clicked for:', arena?.name);
+          console.log('[ArenaDetails] Book Now clicked for:', arena?.name);
+          console.log('[ArenaDetails] Arena data:', JSON.stringify(arena, null, 2));
+          console.log('[ArenaDetails] Navigating to Booking screen...');
           navigation.navigate('Booking', { arena });
         }}
         activeOpacity={0.8}
+        accessible={true}
+        accessibilityLabel={`Book ${arena?.name} now`}
+        accessibilityRole="button"
       >
         <Text style={styles.bookButtonText}>📅 Book Now</Text>
       </TouchableOpacity>

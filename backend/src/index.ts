@@ -8,9 +8,11 @@ import LocationService from '@/services/LocationService';
 import { authMiddleware, errorHandler, AuthenticatedRequest } from '@/middleware/auth';
 import gamesRouter from '@/routes/games';
 import playersRouter from '@/routes/players';
+import bookingsRouter from '@/routes/bookings';
+import matchesRouter from '@/routes/matches';
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = parseInt(process.env.PORT || '4000', 10);
 
 app.use(cors());
 app.use(express.json());
@@ -18,6 +20,8 @@ app.use(express.json());
 // Mount routers
 app.use('/api/games', gamesRouter);
 app.use('/api/players', playersRouter);
+app.use('/api/bookings', bookingsRouter);
+app.use('/api/matches', matchesRouter);
 
 // Health & Status
 app.get('/', (_req, res) => {

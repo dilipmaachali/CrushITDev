@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '@/theme';
+import { api } from '@/services';
 import { TOUCH_TARGET } from '@/constants/accessibility';
 
 export default function ManagePlayersScreen({ route, navigation }: any) {
@@ -28,31 +29,23 @@ export default function ManagePlayersScreen({ route, navigation }: any) {
 
   const loadGame = async () => {
     try {
-      const savedGames = await AsyncStorage.getItem('scheduledGames');
-      if (savedGames) {
-        const games = JSON.parse(savedGames);
-        const foundGame = games.find((g: any) => g.id === gameId);
-        setGame(foundGame);
-      }
+      // Fetch from backend API
+      const response = await api.get(`/api/games/${gameId}`);
+      setGame(response.data);
     } catch (error) {
       console.error('Error loading game:', error);
+      Alert.alert('Error', 'Failed to load game details');
     }
   };
 
-  const saveGame = async (updatedGame: any) => {
+  const updateGame = async (updatedGame: any) => {
     try {
-      const savedGames = await AsyncStorage.getItem('scheduledGames');
-      if (savedGames) {
-        const games = JSON.parse(savedGames);
-        const index = games.findIndex((g: any) => g.id === gameId);
-        if (index !== -1) {
-          games[index] = updatedGame;
-          await AsyncStorage.setItem('scheduledGames', JSON.stringify(games));
-          setGame(updatedGame);
-        }
-      }
+      // Update via backend API
+      await api.put(`/api/games/${gameId}`, updatedGame);
+      setGame(updatedGame);
     } catch (error) {
-      console.error('Error saving game:', error);
+      console.error('Error updating game:', error);
+      Alert.alert('Error', 'Failed to update game');
     }
   };
 

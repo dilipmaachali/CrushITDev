@@ -13,6 +13,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '@/theme';
 import { TOUCH_TARGET } from '@/constants/accessibility';
+import { api } from '@/services';
 
 export default function CreateGameScreen({ navigation }: any) {
   const [sport, setSport] = useState('cricket');
@@ -111,10 +112,9 @@ export default function CreateGameScreen({ navigation }: any) {
     };
 
     try {
-      const savedGames = await AsyncStorage.getItem('scheduledGames');
-      const games = savedGames ? JSON.parse(savedGames) : [];
-      games.push(newGame);
-      await AsyncStorage.setItem('scheduledGames', JSON.stringify(games));
+      // Save to backend API
+      const response = await api.post('/api/games', newGame);
+      console.log('Game created:', response.data);
       
       Alert.alert(
         'Game Created! 🎉',
@@ -126,9 +126,10 @@ export default function CreateGameScreen({ navigation }: any) {
           },
         ]
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating game:', error);
-      Alert.alert('Error', 'Failed to create game. Please try again.');
+      const errorMessage = error.response?.data?.error || 'Failed to create game. Please try again.';
+      Alert.alert('Error', errorMessage);
     }
   };
 

@@ -17,6 +17,8 @@ interface Star {
 export const GalaxyBackground: React.FC = () => {
   const starsRef = useRef<Star[]>([]);
   
+  console.log('[GalaxyBackground] Component mounted and rendering');
+  
   // Generate random stars
   useEffect(() => {
     const stars: Star[] = [];

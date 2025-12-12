@@ -26,11 +26,31 @@ export default function ProfileScreen({ navigation }: any) {
   const [showPartners, setShowPartners] = useState(false);
   const [showOrders, setShowOrders] = useState(false);
   const [orderHistory, setOrderHistory] = useState<any[]>([]);
+  const [bookingHistory, setBookingHistory] = useState<any[]>([]);
+  const [bookingTab, setBookingTab] = useState<'upcoming' | 'past' | 'cancelled'>('upcoming');
   const { galaxyThemeEnabled, toggleGalaxyTheme } = useTheme();
+
+  // Reload bookings when modal opens
+  useEffect(() => {
+    if (showBookings) {
+      loadBookingHistory();
+    }
+  }, [showBookings]);
 
   useFocusEffect(
     React.useCallback(() => {
       loadOrderHistory();
+      loadBookingHistory();
+      
+      // Check if we should auto-open bookings modal
+      const checkAutoOpen = async () => {
+        const autoOpen = await AsyncStorage.getItem('openBookingsModal');
+        if (autoOpen === 'true') {
+          await AsyncStorage.removeItem('openBookingsModal');
+          setTimeout(() => setShowBookings(true), 500);
+        }
+      };
+      checkAutoOpen();
     }, [])
   );
 
@@ -45,6 +65,25 @@ export default function ProfileScreen({ navigation }: any) {
     }
   };
 
+  const loadBookingHistory = async () => {
+    try {
+      console.log('[ProfileScreen] Loading booking history...');
+      const bookings = await AsyncStorage.getItem('bookingHistory');
+      console.log('[ProfileScreen] Raw bookings from storage:', bookings);
+      if (bookings) {
+        const parsedBookings = JSON.parse(bookings);
+        console.log('[ProfileScreen] Parsed bookings:', parsedBookings);
+        console.log('[ProfileScreen] Number of bookings:', parsedBookings.length);
+        setBookingHistory(parsedBookings);
+        console.log('[ProfileScreen] ✅ Bookings loaded successfully');
+      } else {
+        console.log('[ProfileScreen] No bookings found in storage');
+      }
+    } catch (error) {
+      console.log('[ProfileScreen] ❌ Error loading bookings:', error);
+    }
+  };
+
   const handleViewOrders = () => {
     if (orderHistory.length === 0) {
       Alert.alert('No Orders', 'You haven\'t placed any orders yet. Visit the Shop tab to buy sports equipment!');
@@ -53,17 +92,20 @@ export default function ProfileScreen({ navigation }: any) {
     setShowOrders(true);
   };
 
-  const handleViewBookings = () => {
-    const bookings = [
-      { id: '1', arena: 'Elite Cricket Turf', date: 'Today, 6:00 PM', status: 'Upcoming' },
-      { id: '2', arena: 'Badminton Palace', date: 'Yesterday', status: 'Completed' },
-    ];
+  const handleViewBookings = async () => {
+    console.log('[ProfileScreen] handleViewBookings called');
     
-    const bookingsList = bookings.map(b => `${b.arena}\n${b.date} - ${b.status}`).join('\n\n');
-    Alert.alert('My Bookings', bookingsList, [
-      { text: 'Close' },
-      { text: 'View All', onPress: () => Alert.alert('View All Bookings', 'Full booking history coming soon!') }
-    ]);
+    // Reload bookings to ensure we have latest data
+    await loadBookingHistory();
+    
+    console.log('[ProfileScreen] bookingHistory:', bookingHistory);
+    console.log('[ProfileScreen] bookingHistory.length:', bookingHistory.length);
+    if (bookingHistory.length === 0) {
+      Alert.alert('No Bookings', 'You haven\'t made any bookings yet. Visit the Arenas tab to book a court!');
+      return;
+    }
+    console.log('[ProfileScreen] Opening bookings modal');
+    setShowBookings(true);
   };
 
   const handleManagePartners = () => {
@@ -84,7 +126,7 @@ export default function ProfileScreen({ navigation }: any) {
         {
           icon: '📅',
           title: 'My Bookings',
-          subtitle: 'View and manage your bookings',
+          subtitle: `${bookingHistory.filter(b => b.status === 'upcoming').length} upcoming bookings`,
           onPress: handleViewBookings,
         },
         {
@@ -354,6 +396,148 @@ export default function ProfileScreen({ navigation }: any) {
               </View>
             </View>
           ))}
+        </ScrollView>
+      </View>
+    </Modal>
+
+    {/* Bookings Modal */}
+    <Modal
+      visible={showBookings}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => setShowBookings(false)}
+    >
+      <View style={styles.ordersModalContainer}>
+        <View style={styles.ordersModalHeader}>
+          <Text style={styles.ordersModalTitle}>My Bookings</Text>
+          <TouchableOpacity onPress={() => setShowBookings(false)}>
+            <Text style={styles.closeButton}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Booking Tabs */}
+        <View style={styles.bookingTabs}>
+          <TouchableOpacity
+            style={[styles.bookingTab, bookingTab === 'upcoming' && styles.bookingTabActive]}
+            onPress={() => setBookingTab('upcoming')}
+          >
+            <Text style={[styles.bookingTabText, bookingTab === 'upcoming' && styles.bookingTabTextActive]}>
+              Upcoming
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.bookingTab, bookingTab === 'past' && styles.bookingTabActive]}
+            onPress={() => setBookingTab('past')}
+          >
+            <Text style={[styles.bookingTabText, bookingTab === 'past' && styles.bookingTabTextActive]}>
+              Past
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.bookingTab, bookingTab === 'cancelled' && styles.bookingTabActive]}
+            onPress={() => setBookingTab('cancelled')}
+          >
+            <Text style={[styles.bookingTabText, bookingTab === 'cancelled' && styles.bookingTabTextActive]}>
+              Cancelled
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.ordersList}>
+          {bookingHistory
+            .filter(booking => {
+              if (bookingTab === 'upcoming') return booking.status === 'upcoming';
+              if (bookingTab === 'past') return booking.status === 'completed';
+              if (bookingTab === 'cancelled') return booking.status === 'cancelled';
+              return false;
+            })
+            .map((booking) => (
+            <View key={booking.id} style={styles.orderCard}>
+              <View style={styles.orderHeader}>
+                <Text style={styles.orderId}>🏟️ {booking.arena}</Text>
+                <Text style={[
+                  styles.orderStatus, 
+                  booking.status === 'upcoming' && { backgroundColor: colors.success + '20', color: colors.success },
+                  booking.status === 'completed' && { backgroundColor: colors.text.secondary + '20', color: colors.text.secondary },
+                  booking.status === 'cancelled' && { backgroundColor: colors.error + '20', color: colors.error }
+                ]}>
+                  {booking.status === 'upcoming' ? 'Upcoming' : booking.status === 'completed' ? 'Completed' : 'Cancelled'}
+                </Text>
+              </View>
+              <Text style={styles.bookingId}>Booking ID: {booking.id}</Text>
+              <View style={styles.bookingDetails}>
+                <Text style={styles.bookingDetailRow}>📅 {booking.day}, {booking.date}</Text>
+                <Text style={styles.bookingDetailRow}>⏰ {booking.time}</Text>
+                <Text style={styles.bookingDetailRow}>👥 {booking.players} players</Text>
+                <Text style={styles.bookingDetailRow}>👤 {booking.playerName}</Text>
+                <Text style={styles.bookingDetailRow}>📞 {booking.contactNumber}</Text>
+              </View>
+              <View style={styles.orderFooter}>
+                <Text style={styles.orderTotal}>Total Paid: ₹{booking.totalPrice}</Text>
+              </View>
+              <Text style={styles.bookedAt}>
+                Booked on: {new Date(booking.bookedAt).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </Text>
+              
+              {booking.status === 'upcoming' && (
+                <TouchableOpacity
+                  style={styles.cancelBookingButton}
+                  onPress={() => {
+                    Alert.alert(
+                      'Cancel Booking',
+                      'Are you sure you want to cancel this booking?',
+                      [
+                        { text: 'No' },
+                        { 
+                          text: 'Yes, Cancel',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              const bookingsJson = await AsyncStorage.getItem('bookingHistory');
+                              if (bookingsJson) {
+                                const bookings = JSON.parse(bookingsJson);
+                                const updatedBookings = bookings.map((b: any) => 
+                                  b.id === booking.id ? { ...b, status: 'cancelled' } : b
+                                );
+                                await AsyncStorage.setItem('bookingHistory', JSON.stringify(updatedBookings));
+                                setBookingHistory(updatedBookings);
+                                Alert.alert('Cancelled', 'Booking has been cancelled');
+                              }
+                            } catch (error) {
+                              console.error('Error cancelling booking:', error);
+                            }
+                          }
+                        }
+                      ]
+                    );
+                  }}
+                >
+                  <Text style={styles.cancelBookingButtonText}>❌ Cancel Booking</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
+          {bookingHistory.filter(booking => {
+            if (bookingTab === 'upcoming') return booking.status === 'upcoming';
+            if (bookingTab === 'past') return booking.status === 'completed';
+            if (bookingTab === 'cancelled') return booking.status === 'cancelled';
+            return false;
+          }).length === 0 && (
+            <View style={styles.emptyTabState}>
+              <Text style={styles.emptyTabEmoji}>
+                {bookingTab === 'upcoming' ? '📅' : bookingTab === 'past' ? '✅' : '❌'}
+              </Text>
+              <Text style={styles.emptyTabText}>
+                No {bookingTab} bookings
+              </Text>
+            </View>
+          )}
         </ScrollView>
       </View>
     </Modal>
@@ -630,5 +814,84 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
     textAlign: 'right',
+  },
+  bookingId: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text.secondary,
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  bookingDetails: {
+    marginBottom: 12,
+    backgroundColor: colors.surface,
+    padding: 12,
+    borderRadius: 8,
+  },
+  bookingDetailRow: {
+    fontSize: 14,
+    color: colors.text.primary,
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  bookedAt: {
+    fontSize: 11,
+    color: colors.text.tertiary,
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  bookingTabs: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    padding: 4,
+    margin: 16,
+    borderRadius: 12,
+    gap: 4,
+  },
+  bookingTab: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  bookingTabActive: {
+    backgroundColor: colors.primary,
+  },
+  bookingTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  bookingTabTextActive: {
+    color: colors.white,
+  },
+  emptyTabState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyTabEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  emptyTabText: {
+    fontSize: 16,
+    color: colors.text.secondary,
+  },
+  cancelBookingButton: {
+    backgroundColor: colors.error + '15',
+    borderWidth: 1,
+    borderColor: colors.error,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  cancelBookingButtonText: {
+    color: colors.error,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

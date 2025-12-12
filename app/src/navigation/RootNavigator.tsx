@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Text, View, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   HomeScreen,
   ArenasScreen,
@@ -20,10 +19,18 @@ import {
   ScoringScreen,
   ScoreEntryScreen,
   GameSummaryScreen,
+  CricketScoringScreen,
+  CricketMatchSetupScreen,
+  BadmintonScoringScreen,
+  BadmintonMatchSetupScreen,
+  FootballScoringScreen,
+  FootballMatchSetupScreen,
   GamesScreen,
   CreateGameScreen,
+  EditGameScreen,
   ManagePlayersScreen,
   FindPlayersScreen,
+  MoreScreen,
 } from '@/screens';
 import { FloatingChat } from '@/components';
 import { GalaxyBackground } from '@/components/GalaxyBackground';
@@ -166,6 +173,41 @@ function GamesStack() {
         options={{ headerTitle: 'Create Game' }}
       />
       <Stack.Screen
+        name="EditGame"
+        component={EditGameScreen}
+        options={{ headerTitle: 'Edit Game' }}
+      />
+      <Stack.Screen
+        name="CricketScoring"
+        component={CricketScoringScreen}
+        options={{ headerTitle: 'Cricket Scoring' }}
+      />
+      <Stack.Screen
+        name="CricketMatchSetup"
+        component={CricketMatchSetupScreen}
+        options={{ headerTitle: 'Match Setup' }}
+      />
+      <Stack.Screen
+        name="BadmintonScoring"
+        component={BadmintonScoringScreen}
+        options={{ headerTitle: 'Badminton Scoring' }}
+      />
+      <Stack.Screen
+        name="BadmintonMatchSetup"
+        component={BadmintonMatchSetupScreen}
+        options={{ headerTitle: 'Badminton Setup' }}
+      />
+      <Stack.Screen
+        name="FootballScoring"
+        component={FootballScoringScreen}
+        options={{ headerTitle: 'Football Scoring' }}
+      />
+      <Stack.Screen
+        name="FootballMatchSetup"
+        component={FootballMatchSetupScreen}
+        options={{ headerTitle: 'Football Setup' }}
+      />
+      <Stack.Screen
         name="ManagePlayers"
         component={ManagePlayersScreen}
         options={{ headerTitle: 'Manage Players' }}
@@ -191,6 +233,45 @@ function ProfileStack() {
     >
       <Stack.Screen
         name="ProfileView"
+        component={ProfileScreen}
+        options={{ headerTitle: 'Profile' }}
+      />
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ headerTitle: 'Settings' }}
+      />
+    </Stack.Navigator>
+  );
+}
+
+// More Stack (New - consolidates Shop, PetCare, Profile)
+function MoreStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: true,
+        headerBackTitleVisible: false,
+        headerTintColor: colors.primary,
+      }}
+    >
+      <Stack.Screen
+        name="MoreList"
+        component={MoreScreen}
+        options={{ headerTitle: 'More' }}
+      />
+      <Stack.Screen
+        name="Shop"
+        component={ShopScreen}
+        options={{ headerTitle: 'Sports Shop' }}
+      />
+      <Stack.Screen
+        name="PetCare"
+        component={PetCareScreen}
+        options={{ headerTitle: 'Pet Care' }}
+      />
+      <Stack.Screen
+        name="Profile"
         component={ProfileScreen}
         options={{ headerTitle: 'Profile' }}
       />
@@ -252,27 +333,11 @@ function TabNavigator() {
         }}
       />
       <Tab.Screen
-        name="ShopTab"
-        component={ShopStack}
+        name="MoreTab"
+        component={MoreStack}
         options={{
-          tabBarLabel: 'Shop',
-          tabBarIcon: ({ color }) => <Icon name="🛍️" color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="PetCareTab"
-        component={PetCareStack}
-        options={{
-          tabBarLabel: 'PetCare',
-          tabBarIcon: ({ color }) => <Icon name="🐾" color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="ProfileTab"
-        component={ProfileStack}
-        options={{
-          tabBarLabel: 'Profile',
-          tabBarIcon: ({ color }) => <Icon name="👤" color={color} />,
+          tabBarLabel: 'More',
+          tabBarIcon: ({ color }) => <Icon name="⋮" color={color} />,
         }}
       />
     </Tab.Navigator>
@@ -290,37 +355,9 @@ function MainNavigatorWithChat() {
 }
 
 // Root Navigator with Auth and Modal Stack
-export default function RootNavigator() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+export default function RootNavigator({ initialRouteName }: { initialRouteName?: string }) {
   const [showSplash, setShowSplash] = useState(true);
   const { galaxyThemeEnabled } = useTheme();
-
-  useEffect(() => {
-    bootstrapAsync();
-  }, []);
-
-  const bootstrapAsync = async () => {
-    try {
-      // First check for existing token
-      const token = await AsyncStorage.getItem('userToken');
-      
-      // If no token exists, set a dev mode token for testing
-      if (!token) {
-        const devToken = 'dev-test-token';
-        await AsyncStorage.setItem('userToken', devToken);
-        await AsyncStorage.setItem('userEmail', 'test@crushit.app');
-        setIsLoggedIn(true);
-      } else {
-        setIsLoggedIn(true);
-      }
-    } catch (e) {
-      console.error('Failed to restore token', e);
-      setIsLoggedIn(false);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleSplashFinish = () => {
     setShowSplash(false);
@@ -330,16 +367,22 @@ export default function RootNavigator() {
     return <SplashScreen onFinish={handleSplashFinish} />;
   }
 
-  if (isLoading) {
-    return null;
-  }
+  const isLoggedIn = initialRouteName === 'MainApp';
 
+  console.log('[RootNavigator] Rendering with galaxyThemeEnabled:', galaxyThemeEnabled);
+  console.log('[RootNavigator] Initial route:', initialRouteName, 'isLoggedIn:', isLoggedIn);
+  
   return (
-    <>
-      {galaxyThemeEnabled && <GalaxyBackground />}
+    <View style={{ flex: 1 }}>
+      {galaxyThemeEnabled && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <GalaxyBackground />
+        </View>
+      )}
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
+          cardStyle: { backgroundColor: 'transparent' },
         }}
       >
         {isLoggedIn ? (
@@ -372,7 +415,7 @@ export default function RootNavigator() {
           </Stack.Group>
         )}
       </Stack.Navigator>
-    </>
+    </View>
   );
 }
 

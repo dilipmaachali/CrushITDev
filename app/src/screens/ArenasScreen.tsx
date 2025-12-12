@@ -118,11 +118,13 @@ export default function ArenasScreen({ route, navigation }: any) {
         <FlatList
           data={filteredArenas}
           renderItem={({ item }) => (
-            <TouchableOpacity
-              onPress={() => navigation.navigate('ArenaDetails', { arena: item })}
-            >
-              <ArenaCard arena={item} />
-            </TouchableOpacity>
+            <ArenaCard 
+              arena={item} 
+              onPress={() => {
+                console.log('[ArenasScreen] Arena card clicked:', item.name);
+                navigation.navigate('ArenaDetails', { arena: item });
+              }}
+            />
           )}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContainer}

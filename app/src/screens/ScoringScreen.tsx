@@ -72,6 +72,30 @@ export default function ScoringScreen({ navigation }: any) {
     }
   };
 
+  const deleteGame = async (gameId: string) => {
+    Alert.alert(
+      'Delete Game',
+      'Are you sure you want to delete this game? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const updatedGames = games.filter(g => g.id !== gameId);
+              setGames(updatedGames);
+              await AsyncStorage.setItem('scoringGames', JSON.stringify(updatedGames));
+              Alert.alert('Success', 'Game deleted successfully');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete game');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const toggleScoring = async (value: boolean) => {
     setScoringEnabled(value);
     await AsyncStorage.setItem('scoringEnabled', JSON.stringify(value));
@@ -214,6 +238,14 @@ export default function ScoringScreen({ navigation }: any) {
                       {game.type === 'tournament' ? '🏆 Tournament' : '⚡ Practice'}
                     </Text>
                   </View>
+                  <TouchableOpacity
+                    onPress={() => deleteGame(game.id)}
+                    style={styles.deleteButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete game"
+                  >
+                    <Text style={styles.deleteButtonText}>🗑️</Text>
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.playersPreview}>
                   {game.players.slice(0, 3).map((player, idx) => (
@@ -500,6 +532,17 @@ const styles = StyleSheet.create({
   },
   tournamentBadgeText: {
     color: colors.accent,
+  },
+  deleteButton: {
+    padding: 8,
+    marginLeft: 8,
+    minWidth: 40,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButtonText: {
+    fontSize: 20,
   },
   playersPreview: {
     flexDirection: 'row',

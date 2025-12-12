@@ -39,10 +39,18 @@ export default function ArenaCard({ arena, onPress }: ArenaCardProps) {
   // Accessibility label for screen readers
   const accessibilityLabel = `${arena.name}, ${formatType(arena.type)}, ₹${arena.pricing} per hour, Rating: ${arena.rating} stars from ${arena.reviews || 0} reviews, ${arena.distance} away`;
 
+  const handlePress = () => {
+    console.log('[ArenaCard] Card pressed:', arena.name);
+    if (onPress) {
+      onPress();
+    }
+  };
+
   return (
     <TouchableOpacity 
       style={styles.card}
-      onPress={onPress}
+      onPress={handlePress}
+      activeOpacity={0.7}
       accessible={true}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
