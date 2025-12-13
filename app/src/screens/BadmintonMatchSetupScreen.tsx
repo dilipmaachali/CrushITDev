@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,15 +9,27 @@ import {
   Alert,
 } from 'react-native';
 import { colors } from '@/theme';
+import { api } from '@/services';
 
 export default function BadmintonMatchSetupScreen({ route, navigation }: any) {
-  const { gameId } = route.params;
+  const { gameId, matchName, matchType: initialMatchType } = route.params || {};
   
   const [matchType, setMatchType] = useState<'singles' | 'doubles'>('singles');
+  const [bestOf, setBestOf] = useState<1 | 3>(1);
   const [team1Name, setTeam1Name] = useState('Team 1');
   const [team2Name, setTeam2Name] = useState('Team 2');
   const [team1Players, setTeam1Players] = useState<string[]>(['']);
   const [team2Players, setTeam2Players] = useState<string[]>(['']);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingLeft: 16 }}>
+          <Text style={{ fontSize: 18, color: colors.primary }}>←</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
 
   const updateMatchType = (type: 'singles' | 'doubles') => {
     setMatchType(type);
@@ -42,7 +54,7 @@ export default function BadmintonMatchSetupScreen({ route, navigation }: any) {
     }
   };
 
-  const validateAndStart = () => {
+  const validateAndStart = async () => {
     // Validate team names
     if (!team1Name.trim() || !team2Name.trim()) {
       Alert.alert('Error', 'Please enter both team names');
@@ -62,19 +74,56 @@ export default function BadmintonMatchSetupScreen({ route, navigation }: any) {
       return;
     }
 
-    // Navigate to scoring screen
-    navigation.replace('BadmintonScoring', {
-      gameId,
-      matchType,
-      team1: {
-        name: team1Name,
-        players: team1Players.slice(0, requiredPlayers),
-      },
-      team2: {
-        name: team2Name,
-        players: team2Players.slice(0, requiredPlayers),
-      },
-    });
+    try {
+      // Prepare player lists
+      const team1PlayersList = team1Players.slice(0, requiredPlayers).map((name, idx) => ({
+        id: `${team1Name}-p${idx + 1}`,
+        name,
+        teamId: 'team1',
+        score: 0,
+      }));
+      
+      const team2PlayersList = team2Players.slice(0, requiredPlayers).map((name, idx) => ({
+        id: `${team2Name}-p${idx + 1}`,
+        name,
+        teamId: 'team2',
+        score: 0,
+      }));
+
+      // Save match to API
+      const matchData = {
+        name: matchName || `${team1Name} vs ${team2Name}`,
+        type: initialMatchType || 'practice',
+        matchType,
+        bestOf,
+        players: [...team1PlayersList, ...team2PlayersList],
+        team1: {
+          name: team1Name,
+          players: team1PlayersList,
+        },
+        team2: {
+          name: team2Name,
+          players: team2PlayersList,
+        },
+      };
+
+      const response = await api.post('/api/matches', {
+        sport: 'badminton',
+        matchData,
+        status: 'in-progress',
+      });
+
+      // Navigate to scoring screen with the created match ID
+      navigation.replace('BadmintonScoring', {
+        gameId: response.data.id,
+        matchType,
+        bestOf,
+        team1: matchData.team1,
+        team2: matchData.team2,
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create match');
+    }
   };
 
   return (
@@ -121,6 +170,48 @@ export default function BadmintonMatchSetupScreen({ route, navigation }: any) {
                 Doubles
               </Text>
               <Text style={styles.typeButtonSubtext}>2 vs 2</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Match Format Selection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Match Format</Text>
+          <View style={styles.typeSelector}>
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                bestOf === 1 && styles.typeButtonActive,
+              ]}
+              onPress={() => setBestOf(1)}
+            >
+              <Text
+                style={[
+                  styles.typeButtonText,
+                  bestOf === 1 && styles.typeButtonTextActive,
+                ]}
+              >
+                Best of 1
+              </Text>
+              <Text style={styles.typeButtonSubtext}>Single Game</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                bestOf === 3 && styles.typeButtonActive,
+              ]}
+              onPress={() => setBestOf(3)}
+            >
+              <Text
+                style={[
+                  styles.typeButtonText,
+                  bestOf === 3 && styles.typeButtonTextActive,
+                ]}
+              >
+                Best of 3
+              </Text>
+              <Text style={styles.typeButtonSubtext}>Up to 3 Games</Text>
             </TouchableOpacity>
           </View>
         </View>

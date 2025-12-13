@@ -13,6 +13,7 @@ import {
   AccessibilityInfo,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '@/services';
 import { colors } from '@/theme';
 import { useAccessibility } from '@/hooks/useAccessibility';
 import { TOUCH_TARGET } from '@/constants/accessibility';
@@ -24,40 +25,58 @@ interface Player {
   stats?: any;
 }
 
-interface Game {
+interface Match {
+  _id?: string;
   id: string;
-  type: 'tournament' | 'practice';
   sport: string;
-  name: string;
-  players: Player[];
+  matchData: {
+    type: 'tournament' | 'practice';
+    name: string;
+    players: Player[];
+    createdBy?: string;
+  };
+  status: 'setup' | 'in-progress' | 'completed';
   createdAt: string;
   completedAt?: string;
-  status: 'active' | 'completed';
-  createdBy: string;
 }
 
 export default function ScoringScreen({ navigation }: any) {
-  const [games, setGames] = useState<Game[]>([]);
+  const [matches, setMatches] = useState<Match[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [matchToDelete, setMatchToDelete] = useState<string | null>(null);
   const [gameType, setGameType] = useState<'tournament' | 'practice'>('practice');
   const [selectedSport, setSelectedSport] = useState('cricket');
   const [gameName, setGameName] = useState('');
   const [playerNames, setPlayerNames] = useState(['', '']);
   const [scoringEnabled, setScoringEnabled] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadGames();
+    loadMatches();
     loadScoringSettings();
-  }, []);
+    
+    // Reload when screen comes into focus
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadMatches();
+    });
+    
+    return unsubscribe;
+  }, [navigation]);
 
-  const loadGames = async () => {
+  const loadMatches = async () => {
     try {
-      const savedGames = await AsyncStorage.getItem('scoringGames');
-      if (savedGames) {
-        setGames(JSON.parse(savedGames));
-      }
+      setLoading(true);
+      console.log('Loading matches from API...');
+      const response = await api.get('/api/matches');
+      console.log('Matches loaded:', response.data?.length || 0, 'matches');
+      console.log('Full response:', response.data);
+      setMatches(response.data || []);
     } catch (error) {
-      console.log('Error loading games:', error);
+      console.log('Error loading matches:', error);
+      Alert.alert('Error', 'Failed to load matches');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -72,28 +91,54 @@ export default function ScoringScreen({ navigation }: any) {
     }
   };
 
-  const deleteGame = async (gameId: string) => {
-    Alert.alert(
-      'Delete Game',
-      'Are you sure you want to delete this game? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const updatedGames = games.filter(g => g.id !== gameId);
-              setGames(updatedGames);
-              await AsyncStorage.setItem('scoringGames', JSON.stringify(updatedGames));
-              Alert.alert('Success', 'Game deleted successfully');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete game');
-            }
-          }
-        }
-      ]
-    );
+  const deleteGame = async (matchId: string) => {
+    console.log('Delete function called with matchId:', matchId);
+    console.log('Setting showDeleteConfirm to true');
+    
+    if (!matchId) {
+      Alert.alert('Error', 'Unable to delete: Match ID is missing');
+      return;
+    }
+
+    // Show confirmation modal
+    setMatchToDelete(matchId);
+    setShowDeleteConfirm(true);
+    console.log('showDeleteConfirm state should now be true');
+  };
+
+  const confirmDelete = async () => {
+    if (!matchToDelete) return;
+    
+    try {
+      console.log('===== DELETE CONFIRMED =====');
+      console.log('Deleting match with ID:', matchToDelete);
+      const deleteUrl = `/api/matches/${matchToDelete}`;
+      console.log('DELETE URL:', deleteUrl);
+      const response = await api.delete(deleteUrl);
+      console.log('Delete response status:', response.status);
+      console.log('Delete response data:', response.data);
+      console.log('Reloading matches...');
+      await loadMatches();
+      console.log('Matches reloaded. Showing success alert.');
+      setShowDeleteConfirm(false);
+      setMatchToDelete(null);
+      Alert.alert('Success', 'Match deleted successfully');
+    } catch (error: any) {
+      console.error('===== DELETE FAILED =====');
+      console.error('Error:', error);
+      console.error('Error message:', error.message);
+      console.error('Error response status:', error.response?.status);
+      console.error('Error response data:', error.response?.data);
+      setShowDeleteConfirm(false);
+      setMatchToDelete(null);
+      Alert.alert('Error', error.response?.data?.error || error.message || 'Failed to delete match');
+    }
+  };
+
+  const cancelDelete = () => {
+    console.log('Delete cancelled by user');
+    setShowDeleteConfirm(false);
+    setMatchToDelete(null);
   };
 
   const toggleScoring = async (value: boolean) => {
@@ -103,40 +148,75 @@ export default function ScoringScreen({ navigation }: any) {
 
   const createGame = async () => {
     if (!gameName.trim()) {
-      Alert.alert('Required', 'Please enter a game name');
+      Alert.alert('Required', 'Please enter a match name');
       return;
     }
 
-    const validPlayers = playerNames.filter(name => name.trim() !== '');
-    if (validPlayers.length < 2) {
-      Alert.alert('Required', 'Please add at least 2 players');
+    // Redirect to sport-specific setup screens for advanced scoring
+    if (selectedSport === 'badminton') {
+      setShowCreateModal(false);
+      navigation.navigate('BadmintonMatchSetup', {
+        matchName: gameName,
+        matchType: gameType
+      });
+      // Reset form
+      setGameName('');
+      setPlayerNames(['', '']);
       return;
     }
 
-    const newGame: Game = {
-      id: `GAME${Date.now()}`,
-      type: gameType,
-      sport: selectedSport,
-      name: gameName,
-      players: validPlayers.map((name, index) => ({
-        id: `P${index + 1}`,
-        name,
-        score: 0,
-      })),
-      createdAt: new Date().toISOString(),
-      status: 'active',
-      createdBy: 'Current User',
-    };
+    if (selectedSport === 'cricket') {
+      setShowCreateModal(false);
+      navigation.navigate('CricketMatchSetup', {
+        matchName: gameName,
+        matchType: gameType
+      });
+      // Reset form
+      setGameName('');
+      setPlayerNames(['', '']);
+      return;
+    }
 
-    const updatedGames = [newGame, ...games];
-    setGames(updatedGames);
-    await AsyncStorage.setItem('scoringGames', JSON.stringify(updatedGames));
+    if (selectedSport === 'football') {
+      setShowCreateModal(false);
+      navigation.navigate('FootballMatchSetup', {
+        matchName: gameName,
+        matchType: gameType
+      });
+      // Reset form
+      setGameName('');
+      setPlayerNames(['', '']);
+      return;
+    }
 
-    setShowCreateModal(false);
-    setGameName('');
-    setPlayerNames(['', '']);
-    
-    navigation.navigate('ScoreEntry', { game: newGame });
+    // For generic sports, create match with just name
+    try {
+      setLoading(true);
+      
+      const newMatch: any = {
+        sport: selectedSport,
+        matchData: {
+          type: gameType,
+          name: gameName,
+          players: [],
+          createdAt: new Date().toISOString(),
+        },
+        status: 'in-progress'
+      };
+
+      await api.post('/api/matches', newMatch);
+      await loadMatches();
+
+      setShowCreateModal(false);
+      setGameName('');
+      setPlayerNames(['', '']);
+      
+      Alert.alert('Success', 'Match created successfully!');
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.error || 'Failed to create match');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const addPlayerField = () => {
@@ -149,6 +229,32 @@ export default function ScoringScreen({ navigation }: any) {
     setPlayerNames(updated);
   };
 
+  const navigateToScoring = (match: Match) => {
+    // Navigate to sport-specific scoring screen if available
+    const sportScreenMap: { [key: string]: string } = {
+      'cricket': 'CricketScoring',
+      'badminton': 'BadmintonScoring',
+      'football': 'FootballScoring',
+    };
+
+    const screenName = sportScreenMap[match.sport] || 'ScoreEntry';
+    
+    // For sport-specific screens, pass match object directly
+    if (sportScreenMap[match.sport]) {
+      navigation.navigate(screenName, { match });
+    } else {
+      // For generic ScoreEntry, use old format
+      navigation.navigate('ScoreEntry', {
+        game: {
+          id: match._id || match.id,
+          ...match.matchData,
+          sport: match.sport,
+          status: match.status
+        }
+      });
+    }
+  };
+
   const sports = [
     { id: 'cricket', name: 'Cricket', emoji: '🏏' },
     { id: 'football', name: 'Football', emoji: '⚽' },
@@ -157,8 +263,8 @@ export default function ScoringScreen({ navigation }: any) {
     { id: 'basketball', name: 'Basketball', emoji: '🏀' },
   ];
 
-  const activeGames = games.filter(g => g.status === 'active');
-  const completedGames = games.filter(g => g.status === 'completed');
+  const activeMatches = matches.filter(m => m.status === 'in-progress' || m.status === 'setup');
+  const completedMatches = matches.filter(m => m.status === 'completed');
 
   if (!scoringEnabled) {
     return (
@@ -170,7 +276,7 @@ export default function ScoringScreen({ navigation }: any) {
           <Text style={styles.disabledIcon}>📊</Text>
           <Text style={styles.disabledTitle}>Score Tracking Disabled</Text>
           <Text style={styles.disabledText}>
-            Enable score tracking in Settings to create and manage game scores
+            Enable score tracking in Settings to create and manage match scores
           </Text>
           <TouchableOpacity
             style={styles.enableButton}
@@ -190,114 +296,166 @@ export default function ScoringScreen({ navigation }: any) {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Score Tracking</Text>
-          <Text style={styles.subtitle}>{games.length} games tracked</Text>
+          <Text style={styles.subtitle}>{matches.length} matches tracked</Text>
         </View>
         <TouchableOpacity
           style={styles.createButton}
           onPress={() => setShowCreateModal(true)}
           accessibilityRole="button"
-          accessibilityLabel="Create new game"
-          accessibilityHint="Opens form to create a new tournament or practice game"
+          accessibilityLabel="Create new match"
+          accessibilityHint="Opens form to create a new tournament or practice match"
         >
-          <Text style={styles.createButtonText}>+ New Game</Text>
+          <Text style={styles.createButtonText}>+ New Match</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {activeGames.length > 0 && (
+        {activeMatches.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle} accessibilityRole="header">
-              Active Games ({activeGames.length})
+              Active Matches ({activeMatches.length})
             </Text>
-            {activeGames.map(game => (
-              <TouchableOpacity
-                key={game.id}
-                style={styles.gameCard}
-                onPress={() => navigation.navigate('ScoreEntry', { game })}
-                accessibilityRole="button"
-                accessibilityLabel={`${game.name}, ${game.sport}, ${game.type}, ${game.players.length} players`}
-              >
-                <View style={styles.gameHeader}>
-                  <Text style={styles.gameSportEmoji}>
-                    {sports.find(s => s.id === game.sport)?.emoji}
-                  </Text>
-                  <View style={styles.gameInfo}>
-                    <Text style={styles.gameName}>{game.name}</Text>
-                    <Text style={styles.gameDetails}>
-                      {game.sport} • {game.players.length} players
+            {activeMatches.map(match => (
+              <View key={match._id || match.id} style={styles.gameCard}>
+                <TouchableOpacity
+                  style={styles.gameCardContent}
+                  onPress={() => navigateToScoring(match)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${match.matchData?.name || 'Match'}, ${match.sport || 'Unknown'}, ${match.matchData?.type || 'practice'}, ${match.matchData?.players?.length || 0} players`}
+                >
+                  <View style={styles.gameHeader}>
+                    <Text style={styles.gameSportEmoji}>
+                      {sports.find(s => s.id === match.sport)?.emoji}
                     </Text>
-                  </View>
-                  <View style={[
-                    styles.typeBadge,
-                    game.type === 'tournament' && styles.tournamentBadge
-                  ]}>
-                    <Text style={[
-                      styles.typeBadgeText,
-                      game.type === 'tournament' && styles.tournamentBadgeText
+                    <View style={styles.gameInfo}>
+                      <Text style={styles.gameName}>{match.matchData?.name || 'Unnamed Match'}</Text>
+                      <Text style={styles.gameDetails}>
+                        {match.sport} • {match.matchData?.players?.length || 0} players
+                      </Text>
+                      {match.createdAt && (
+                        <Text style={styles.gameTimestamp}>
+                          {new Date(match.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {' • '}
+                          {new Date(match.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={[
+                      styles.typeBadge,
+                      (match.matchData?.type === 'tournament') && styles.tournamentBadge
                     ]}>
-                      {game.type === 'tournament' ? '🏆 Tournament' : '⚡ Practice'}
-                    </Text>
+                      <Text style={[
+                        styles.typeBadgeText,
+                        (match.matchData?.type === 'tournament') && styles.tournamentBadgeText
+                      ]}>
+                        {(match.matchData?.type === 'tournament') ? '🏆 Tournament' : '⚡ Practice'}
+                      </Text>
+                    </View>
                   </View>
-                  <TouchableOpacity
-                    onPress={() => deleteGame(game.id)}
-                    style={styles.deleteButton}
-                    accessibilityRole="button"
-                    accessibilityLabel="Delete game"
-                  >
-                    <Text style={styles.deleteButtonText}>🗑️</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.playersPreview}>
-                  {game.players.slice(0, 3).map((player, idx) => (
-                    <Text key={player.id} style={styles.playerPreviewText}>
-                      {player.name}: {player.score}
-                      {idx < Math.min(game.players.length - 1, 2) ? ' • ' : ''}
-                    </Text>
-                  ))}
-                  {game.players.length > 3 && (
-                    <Text style={styles.playerPreviewText}>+{game.players.length - 3} more</Text>
-                  )}
-                </View>
-              </TouchableOpacity>
+                  <View style={styles.playersPreview}>
+                    {(match.matchData?.players || []).slice(0, 3).map((player: Player, idx: number) => (
+                      <Text key={player.id} style={styles.playerPreviewText}>
+                        {player.name}: {player.score}
+                        {idx < Math.min((match.matchData?.players?.length || 0) - 1, 2) ? ' • ' : ''}
+                      </Text>
+                    ))}
+                    {(match.matchData?.players?.length || 0) > 3 && (
+                      <Text style={styles.playerPreviewText}>+{(match.matchData?.players?.length || 0) - 3} more</Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    const id = match._id || match.id;
+                    console.log('Delete button pressed for ACTIVE match:', { 
+                      matchId: id, 
+                      match_id: match.id, 
+                      match__id: match._id,
+                      fullMatch: JSON.stringify(match)
+                    });
+                    if (id) {
+                      deleteGame(id);
+                    } else {
+                      Alert.alert('Error', 'Cannot delete: Match ID is missing');
+                    }
+                  }}
+                  style={styles.deleteButton}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete match"
+                >
+                  <Text style={styles.deleteButtonText}>🗑️</Text>
+                </TouchableOpacity>
+              </View>
             ))}
           </View>
         )}
 
-        {completedGames.length > 0 && (
+        {completedMatches.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle} accessibilityRole="header">
-              Completed Games ({completedGames.length})
+              Completed Matches ({completedMatches.length})
             </Text>
-            {completedGames.map(game => (
-              <TouchableOpacity
-                key={game.id}
-                style={[styles.gameCard, styles.completedCard]}
-                onPress={() => navigation.navigate('GameSummary', { game })}
-                accessibilityRole="button"
-                accessibilityLabel={`Completed game: ${game.name}`}
-              >
-                <View style={styles.gameHeader}>
-                  <Text style={styles.gameSportEmoji}>
-                    {sports.find(s => s.id === game.sport)?.emoji}
-                  </Text>
-                  <View style={styles.gameInfo}>
-                    <Text style={styles.gameName}>{game.name}</Text>
-                    <Text style={styles.gameDetails}>
-                      Completed • {new Date(game.completedAt!).toLocaleDateString()}
+            {completedMatches.map(match => (
+              <View key={match._id || match.id} style={[styles.gameCard, styles.completedCard]}>
+                <TouchableOpacity
+                  style={styles.gameCardContent}
+                  onPress={() => navigateToScoring(match)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Completed match: ${match.matchData?.name || 'Match'}`}
+                >
+                  <View style={styles.gameHeader}>
+                    <Text style={styles.gameSportEmoji}>
+                      {sports.find(s => s.id === match.sport)?.emoji}
                     </Text>
+                    <View style={styles.gameInfo}>
+                      <Text style={styles.gameName}>{match.matchData?.name || 'Unnamed Match'}</Text>
+                      <Text style={styles.gameDetails}>
+                        Completed • {match.completedAt ? new Date(match.completedAt).toLocaleDateString() : 'Recently'}
+                      </Text>
+                      {match.createdAt && (
+                        <Text style={styles.gameTimestamp}>
+                          Started: {new Date(match.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {' • '}
+                          {new Date(match.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                      )}
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    const id = match._id || match.id;
+                    console.log('Delete button pressed for COMPLETED match:', { 
+                      matchId: id, 
+                      match_id: match.id, 
+                      match__id: match._id,
+                      fullMatch: JSON.stringify(match)
+                    });
+                    if (id) {
+                      deleteGame(id);
+                    } else {
+                      Alert.alert('Error', 'Cannot delete: Match ID is missing');
+                    }
+                  }}
+                  style={styles.deleteButton}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete completed match"
+                >
+                  <Text style={styles.deleteButtonText}>🗑️</Text>
+                </TouchableOpacity>
+              </View>
             ))}
           </View>
         )}
 
-        {games.length === 0 && (
+        {matches.length === 0 && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>🎯</Text>
-            <Text style={styles.emptyTitle}>No Games Yet</Text>
+            <Text style={styles.emptyTitle}>No Matches Yet</Text>
             <Text style={styles.emptyText}>
-              Create your first game to start tracking scores
+              Create your first match to start tracking scores
             </Text>
           </View>
         )}
@@ -312,7 +470,7 @@ export default function ScoringScreen({ navigation }: any) {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Create New Game</Text>
+            <Text style={styles.modalTitle}>Create New Match</Text>
             <TouchableOpacity 
               onPress={() => setShowCreateModal(false)}
               accessibilityRole="button"
@@ -323,8 +481,8 @@ export default function ScoringScreen({ navigation }: any) {
           </View>
 
           <ScrollView style={styles.modalContent}>
-            {/* Game Type */}
-            <Text style={styles.label}>Game Type</Text>
+            {/* Match Type */}
+            <Text style={styles.label}>Match Type</Text>
             <View style={styles.typeButtons}>
               <TouchableOpacity
                 style={[
@@ -382,51 +540,64 @@ export default function ScoringScreen({ navigation }: any) {
               ))}
             </View>
 
-            {/* Game Name */}
-            <Text style={styles.label}>Game Name</Text>
+            {/* Match Name */}
+            <Text style={styles.label}>Match Name</Text>
             <TextInput
               style={styles.input}
               value={gameName}
               onChangeText={setGameName}
               placeholder="e.g., Weekend Cricket Match"
               placeholderTextColor={colors.text.tertiary}
-              accessibilityLabel="Game name input"
-              accessibilityHint="Enter a name for this game"
+              accessibilityLabel="Match name input"
+              accessibilityHint="Enter a name for this match"
             />
 
-            {/* Players */}
-            <Text style={styles.label}>Players</Text>
-            {playerNames.map((name, index) => (
-              <TextInput
-                key={index}
-                style={styles.input}
-                value={name}
-                onChangeText={(text) => updatePlayerName(index, text)}
-                placeholder={`Player ${index + 1} name`}
-                placeholderTextColor={colors.text.tertiary}
-                accessibilityLabel={`Player ${index + 1} name input`}
-              />
-            ))}
-            <TouchableOpacity
-              style={styles.addPlayerButton}
-              onPress={addPlayerField}
-              accessibilityRole="button"
-              accessibilityLabel="Add another player"
-            >
-              <Text style={styles.addPlayerText}>+ Add Player</Text>
-            </TouchableOpacity>
+            {/* Info text for sport-specific setup */}
+            {['badminton', 'cricket', 'football'].includes(selectedSport) && (
+              <View style={styles.infoBox}>
+                <Text style={styles.infoText}>
+                  ℹ️ Players will be added in the {selectedSport === 'badminton' ? 'Badminton' : selectedSport === 'cricket' ? 'Cricket' : 'Football'} setup screen
+                </Text>
+              </View>
+            )}
 
             <TouchableOpacity
               style={styles.createGameButton}
               onPress={createGame}
               accessibilityRole="button"
-              accessibilityLabel="Create game"
+              accessibilityLabel="Create match"
             >
-              <Text style={styles.createGameButtonText}>Create Game</Text>
+              <Text style={styles.createGameButtonText}>Create Match</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <View style={styles.dialogBackdrop}>
+          <View style={styles.dialogBox}>
+            <Text style={styles.dialogTitle}>Delete Match?</Text>
+            <Text style={styles.dialogMessage}>
+              Are you sure you want to delete this match? This action cannot be undone.
+            </Text>
+            <View style={styles.dialogButtons}>
+              <TouchableOpacity
+                style={[styles.dialogButton, styles.dialogButtonCancel]}
+                onPress={cancelDelete}
+              >
+                <Text style={styles.dialogButtonCancelText}>No</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.dialogButton, styles.dialogButtonConfirm]}
+                onPress={confirmDelete}
+              >
+                <Text style={styles.dialogButtonConfirmText}>Yes, Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -435,6 +606,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+    position: 'relative',
   },
   header: {
     flexDirection: 'row',
@@ -485,11 +657,16 @@ const styles = StyleSheet.create({
   gameCard: {
     backgroundColor: colors.white,
     borderRadius: 12,
-    padding: 16,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.border,
     minHeight: 88,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  gameCardContent: {
+    flex: 1,
+    padding: 16,
   },
   completedCard: {
     opacity: 0.7,
@@ -516,6 +693,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text.secondary,
   },
+  gameTimestamp: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
   typeBadge: {
     backgroundColor: colors.secondary + '20',
     paddingHorizontal: 10,
@@ -535,11 +718,13 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     padding: 8,
-    marginLeft: 8,
-    minWidth: 40,
-    minHeight: 40,
+    paddingHorizontal: 12,
+    minWidth: 44,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
   },
   deleteButtonText: {
     fontSize: 20,
@@ -727,6 +912,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
   },
+  infoBox: {
+    backgroundColor: colors.primary + '10',
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 24,
+  },
+  infoText: {
+    fontSize: 13,
+    color: colors.text.primary,
+    fontWeight: '500',
+    lineHeight: 18,
+  },
   createGameButton: {
     backgroundColor: colors.primary,
     paddingVertical: 16,
@@ -741,4 +940,59 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  // Delete confirmation dialog styles
+  dialogBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dialogBox: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: 24,
+    width: '80%',
+    maxWidth: 350,
+  },
+  dialogTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: 12,
+  },
+  dialogMessage: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  dialogButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  dialogButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  dialogButtonCancel: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dialogButtonConfirm: {
+    backgroundColor: '#ef4444',
+  },
+  dialogButtonCancelText: {
+    color: colors.text.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dialogButtonConfirmText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });
+

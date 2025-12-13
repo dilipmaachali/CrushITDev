@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,14 @@ import {
   Modal,
   Alert,
   Vibration,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '@/theme';
 import { api } from '@/services';
+
+const { width, height } = Dimensions.get('window');
 
 interface Player {
   id: string;
@@ -35,7 +39,7 @@ interface Match {
   id: string;
   gameId: string;
   matchType: 'singles' | 'doubles';
-  bestOf: 3; // Always best of 3
+  bestOf: 1 | 3; // Best of 1 or 3 games
   team1: {
     name: string;
     players: Player[];
@@ -82,8 +86,9 @@ interface Match {
  * - 21-21, 22-22... 28-28: Continues with 2-point lead rule
  * - 29-29: Golden Point - next rally wins
  * 
- * 🟣 BEST-OF-3 GAMES:
- * - Match winner: First to win 2 games
+ * 🟣 MATCH FORMAT:
+ * - Single Game: Winner takes all (21 points, win by 2)
+ * - Best-of-3: First to win 2 games wins the match
  * - Each game: Rally to 21 points (win by 2)
  * - Third game (if needed): Full game to 21
  * 
@@ -99,14 +104,50 @@ interface Match {
  */
 
 export default function BadmintonScoringScreen({ route, navigation }: any) {
-  const { gameId } = route.params;
+  const { gameId, match: passedMatch, matchType: passedMatchType, bestOf: passedBestOf, team1: passedTeam1, team2: passedTeam2 } = route.params || {};
   const [match, setMatch] = useState<Match | null>(null);
   const [showServiceChoice, setShowServiceChoice] = useState(true);
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
   const [showGameSummary, setShowGameSummary] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [showHighlights, setShowHighlights] = useState(false);
+  
+  // Animation values for celebration
+  const confettiAnimations = useRef(
+    Array.from({ length: 30 }, () => ({
+      x: Math.random() * width, // Static horizontal position
+      y: new Animated.Value(-50),
+      rotation: new Animated.Value(0),
+    }))
+  ).current;
 
   useEffect(() => {
-    loadMatch();
+    if (passedMatch) {
+      // Load match directly from passed params
+      let matchData = passedMatch.matchData || passedMatch;
+      
+      // Initialize games array if not present
+      if (!matchData.games || matchData.games.length === 0) {
+        matchData = {
+          ...matchData,
+          games: [{
+            team1: 0,
+            team2: 0,
+            server: 'team1',
+            receiver: 'team2',
+            serverPosition: 'right',
+            isDeuce: false,
+          }],
+          currentGame: 0,
+          gamesWon: { team1: 0, team2: 0 },
+        };
+      }
+      
+      setMatch(matchData);
+      setShowServiceChoice(false);
+    } else {
+      loadMatch();
+    }
   }, []);
 
   const loadMatch = async () => {
@@ -118,7 +159,7 @@ export default function BadmintonScoringScreen({ route, navigation }: any) {
       
       if (existingMatch) {
         setMatch(existingMatch.matchData);
-        setShowMatchSetup(false);
+        setShowServiceChoice(false);
       }
     } catch (error) {
       console.error('Error loading match:', error);
@@ -127,22 +168,16 @@ export default function BadmintonScoringScreen({ route, navigation }: any) {
 
   const saveMatch = async (updatedMatch: any) => {
     try {
-      // Save to backend API
+      // Save to backend API - always update the existing match using gameId
       const matchPayload = {
         sport: 'badminton' as const,
         matchData: updatedMatch,
         status: updatedMatch.status === 'completed' ? 'completed' as const : 'in-progress' as const,
+        completedAt: updatedMatch.status === 'completed' ? new Date().toISOString() : undefined,
       };
 
-      // Check if match exists
-      const response = await api.get('/api/matches', { params: { sport: 'badminton' } });
-      const existingMatch = response.data.find((m: any) => m.matchData?.id === updatedMatch.id);
-
-      if (existingMatch) {
-        await api.put(`/api/matches/${existingMatch.id}`, matchPayload);
-      } else {
-        await api.post('/api/matches', matchPayload);
-      }
+      console.log('Updating match:', gameId, 'with status:', matchPayload.status);
+      await api.put(`/api/matches/${gameId}`, matchPayload);
 
       setMatch(updatedMatch);
     } catch (error) {
@@ -151,45 +186,92 @@ export default function BadmintonScoringScreen({ route, navigation }: any) {
     }
   };
 
-  const startMatch = (firstServer: 'team1' | 'team2') => {
-    const newMatch: Match = {
-      id: Date.now().toString(),
-      gameId,
-      matchType: 'singles', // Can be changed to doubles
-      bestOf: 3,
-      team1: {
-        name: 'Team 1',
-        players: [{ id: '1', name: 'Player 1', teamId: 'team1' }],
-      },
-      team2: {
-        name: 'Team 2',
-        players: [{ id: '2', name: 'Player 2', teamId: 'team2' }],
-      },
-      games: [
-        {
-          team1: 0,
-          team2: 0,
-          server: firstServer,
-          receiver: firstServer === 'team1' ? 'team2' : 'team1',
-          serverPosition: 'right', // Start from right (score 0 is even)
-          isDeuce: false,
-        },
-      ],
-      currentGame: 0,
-      gamesWon: { team1: 0, team2: 0 },
-      firstServer,
-      status: 'ongoing',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      pointHistory: [],
-    };
+  const triggerCelebration = () => {
+    setShowCelebration(true);
+    
+    // Animate confetti
+    confettiAnimations.forEach((confetti, index) => {
+      Animated.parallel([
+        Animated.timing(confetti.y, {
+          toValue: height + 100,
+          duration: 3000 + Math.random() * 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(confetti.rotation, {
+          toValue: 360 * (3 + Math.random() * 2),
+          duration: 3000 + Math.random() * 2000,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
 
-    setMatch(newMatch);
-    setShowServiceChoice(false);
-    saveMatch(newMatch);
+    // Hide celebration after animation
+    setTimeout(() => {
+      setShowCelebration(false);
+      // Reset animations
+      confettiAnimations.forEach(confetti => {
+        confetti.y.setValue(-50);
+        confetti.rotation.setValue(0);
+      });
+    }, 5000);
   };
 
-  const scorePoint = (team: 'team1' | 'team2') => {
+  const startMatch = async (firstServer: 'team1' | 'team2') => {
+    try {
+      // Load the existing match created by setup screen
+      const response = await api.get(`/api/matches/${gameId}`);
+      const existingMatch = response.data;
+
+      // Update the match with game initialization
+      const updatedMatchData = {
+        ...existingMatch.matchData,
+        id: gameId,
+        gameId,
+        matchType: passedMatchType || existingMatch.matchData?.matchType || 'singles',
+        bestOf: passedBestOf || existingMatch.matchData?.bestOf || 1,
+        team1: passedTeam1 || existingMatch.matchData?.team1 || {
+          name: 'Team 1',
+          players: [{ id: '1', name: 'Player 1', teamId: 'team1' }],
+        },
+        team2: passedTeam2 || existingMatch.matchData?.team2 || {
+          name: 'Team 2',
+          players: [{ id: '2', name: 'Player 2', teamId: 'team2' }],
+        },
+        games: [
+          {
+            team1: 0,
+            team2: 0,
+            server: firstServer,
+            receiver: firstServer === 'team1' ? 'team2' : 'team1',
+            serverPosition: 'right', // Start from right (score 0 is even)
+            isDeuce: false,
+          },
+        ],
+        currentGame: 0,
+        gamesWon: { team1: 0, team2: 0 },
+        firstServer,
+        status: 'ongoing',
+        createdAt: existingMatch.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        pointHistory: [],
+      };
+
+      setMatch(updatedMatchData);
+      setShowServiceChoice(false);
+      
+      // Update the existing match (not create new)
+      await api.put(`/api/matches/${gameId}`, {
+        sport: 'badminton',
+        matchData: updatedMatchData,
+        status: 'in-progress',
+      });
+    } catch (error) {
+      console.error('Error starting match:', error);
+      Alert.alert('Error', 'Failed to start match');
+    }
+  };
+
+  const scorePoint = async (team: 'team1' | 'team2') => {
     if (!match || match.status !== 'ongoing') return;
 
     const currentGame = match.games[match.currentGame];
@@ -276,20 +358,30 @@ export default function BadmintonScoringScreen({ route, navigation }: any) {
         gamesWon: newGamesWon,
       };
 
-      // Check if match is won (best of 3)
-      if (newGamesWon[gameWinner] === 2) {
+      // Check if match is won (based on bestOf setting)
+      const requiredWins = match.bestOf === 1 ? 1 : 2;
+      console.log('Game complete check:', { currentWins: newGamesWon[gameWinner], requiredWins, bestOf: match.bestOf });
+      
+      if (newGamesWon[gameWinner] >= requiredWins) {
         updatedMatch.status = 'completed';
         updatedMatch.winner = gameWinner;
+        updatedMatch.updatedAt = new Date().toISOString();
+        
+        console.log('Match completed! Saving with status:', updatedMatch.status);
+        
+        // Save immediately before showing celebration
+        await saveMatch(updatedMatch);
+        
+        // Trigger celebration animation
+        triggerCelebration();
         
         Vibration.vibrate([0, 200, 100, 200]);
         
         setTimeout(() => {
-          Alert.alert(
-            '🏆 Match Complete!',
-            `${gameWinner === 'team1' ? match.team1.name : match.team2.name} wins ${newGamesWon[gameWinner]}-${newGamesWon[gameWinner === 'team1' ? 'team2' : 'team1']}`,
-            [{ text: 'View Summary', onPress: () => setShowGameSummary(true) }]
-          );
-        }, 500);
+          setShowHighlights(true);
+        }, 1000);
+        
+        return; // Exit early to prevent starting next game
       } else {
         // Start next game
         Vibration.vibrate(200);
@@ -324,7 +416,10 @@ export default function BadmintonScoringScreen({ route, navigation }: any) {
       Vibration.vibrate(50);
     }
 
-    saveMatch(updatedMatch);
+    // Only save if match is not completed (completed matches are saved immediately above)
+    if (updatedMatch.status !== 'completed') {
+      await saveMatch(updatedMatch);
+    }
   };
 
   const undoLastPoint = () => {
@@ -381,8 +476,10 @@ export default function BadmintonScoringScreen({ route, navigation }: any) {
   };
 
   const getCurrentGame = () => {
-    if (!match) return null;
-    return match.games[match.currentGame];
+    if (!match || !match.games || match.games.length === 0) return null;
+    const gameIndex = match.currentGame ?? 0;
+    if (gameIndex < 0 || gameIndex >= match.games.length) return null;
+    return match.games[gameIndex];
   };
 
   const renderServiceChoice = () => (
@@ -541,6 +638,146 @@ export default function BadmintonScoringScreen({ route, navigation }: any) {
           <Text style={styles.rulesText}>• Winner of rally scores & serves next</Text>
         </View>
       </ScrollView>
+
+      {/* Done Button (shown when match is completed) */}
+      {match?.status === 'completed' && (
+        <TouchableOpacity
+          style={styles.doneButton}
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="Done - return to scores"
+        >
+          <Text style={styles.doneButtonText}>✓ Done</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Celebration Overlay */}
+      {showCelebration && (
+        <View style={styles.celebrationOverlay} pointerEvents="none">
+          {confettiAnimations.map((confetti, index) => (
+            <Animated.View
+              key={index}
+              style={[
+                styles.confetti,
+                {
+                  left: confetti.x,
+                  transform: [
+                    { translateY: confetti.y },
+                    { rotate: confetti.rotation.interpolate({
+                      inputRange: [0, 360],
+                      outputRange: ['0deg', '360deg'],
+                    })},
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.confettiText}>
+                {['🎉', '✨', '🎊', '⭐', '💫'][index % 5]}
+              </Text>
+            </Animated.View>
+          ))}
+          <View style={styles.celebrationCenter}>
+            <Text style={styles.celebrationTitle}>🏆 WINNER! 🏆</Text>
+            <Text style={styles.celebrationWinner}>
+              {match?.winner === 'team1' ? match.team1.name : match?.team2.name}
+            </Text>
+            <Text style={styles.celebrationScore}>
+              {match?.gamesWon.team1} - {match?.gamesWon.team2}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Match Highlights Modal */}
+      <Modal visible={showHighlights} transparent animationType="slide">
+        <View style={styles.highlightsOverlay}>
+          <View style={styles.highlightsContent}>
+            <Text style={styles.highlightsTitle}>🎯 Match Highlights</Text>
+            
+            {/* Winner Section */}
+            <View style={styles.highlightWinnerSection}>
+              <Text style={styles.highlightWinnerLabel}>Winner</Text>
+              <Text style={styles.highlightWinnerName}>
+                {match?.winner === 'team1' ? match.team1.name : match?.team2.name}
+              </Text>
+              <Text style={styles.highlightScore}>
+                {match?.gamesWon.team1} - {match?.gamesWon.team2}
+              </Text>
+            </View>
+
+            {/* Game Details */}
+            <View style={styles.highlightStats}>
+              <View style={styles.highlightStatRow}>
+                <Text style={styles.highlightStatLabel}>Match Type</Text>
+                <Text style={styles.highlightStatValue}>
+                  {match?.matchType === 'singles' ? 'Singles' : 'Doubles'}
+                </Text>
+              </View>
+              <View style={styles.highlightStatRow}>
+                <Text style={styles.highlightStatLabel}>Format</Text>
+                <Text style={styles.highlightStatValue}>
+                  {match?.bestOf === 1 ? 'Single Game' : 'Best of 3'}
+                </Text>
+              </View>
+              <View style={styles.highlightStatRow}>
+                <Text style={styles.highlightStatLabel}>Total Points</Text>
+                <Text style={styles.highlightStatValue}>
+                  {match?.pointHistory.length || 0}
+                </Text>
+              </View>
+              <View style={styles.highlightStatRow}>
+                <Text style={styles.highlightStatLabel}>Started</Text>
+                <Text style={styles.highlightStatValue}>
+                  {match?.createdAt ? new Date(match.createdAt).toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  }) : 'N/A'}
+                </Text>
+              </View>
+              <View style={styles.highlightStatRow}>
+                <Text style={styles.highlightStatLabel}>Completed</Text>
+                <Text style={styles.highlightStatValue}>
+                  {match?.updatedAt ? new Date(match.updatedAt).toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  }) : 'N/A'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Game Scores */}
+            <View style={styles.highlightGames}>
+              <Text style={styles.highlightGamesTitle}>Game Scores</Text>
+              {match?.games.map((game, index) => (
+                <View key={index} style={styles.highlightGameRow}>
+                  <Text style={styles.highlightGameLabel}>Game {index + 1}</Text>
+                  <Text style={[
+                    styles.highlightGameScore,
+                    game.winner === match.winner && styles.highlightGameScoreWin
+                  ]}>
+                    {game.team1} - {game.team2}
+                    {game.winner && ` ${game.winner === 'team1' ? '✓' : ''}`}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={styles.highlightsCloseButton}
+              onPress={() => {
+                setShowHighlights(false);
+                navigation.goBack();
+              }}
+            >
+              <Text style={styles.highlightsCloseButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Undo Confirmation Modal */}
       <Modal visible={showUndoConfirm} transparent animationType="fade">
@@ -829,4 +1066,172 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.white,
   },
+  // Done Button
+  doneButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 25,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    zIndex: 10,
+  },
+  doneButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.white,
+  },
+  // Celebration Overlay
+  celebrationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  confetti: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+  },
+  confettiText: {
+    fontSize: 20,
+  },
+  celebrationCenter: {
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 20,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  celebrationTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginBottom: 10,
+  },
+  celebrationWinner: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: 8,
+  },
+  celebrationScore: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.success,
+  },
+  // Highlights Modal
+  highlightsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  highlightsContent: {
+    width: '100%',
+    maxWidth: 500,
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    padding: 24,
+    maxHeight: '80%',
+  },
+  highlightsTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: colors.primary,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  highlightWinnerSection: {
+    backgroundColor: colors.primary + '15',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  highlightWinnerLabel: {
+    fontSize: 14,
+    color: colors.text.secondary,
+    marginBottom: 8,
+  },
+  highlightWinnerName: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.primary,
+    marginBottom: 8,
+  },
+  highlightScore: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: colors.success,
+  },
+  highlightStats: {
+    marginBottom: 20,
+  },
+  highlightStatRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  highlightStatLabel: {
+    fontSize: 14,
+    color: colors.text.secondary,
+  },
+  highlightStatValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  highlightGames: {
+    marginBottom: 20,
+  },
+  highlightGamesTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.text.primary,
+    marginBottom: 12,
+  },
+  highlightGameRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  highlightGameLabel: {
+    fontSize: 14,
+    color: colors.text.secondary,
+  },
+  highlightGameScore: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  highlightGameScoreWin: {
+    color: colors.success,
+  },
+  highlightsCloseButton: {
+    backgroundColor: colors.primary,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  highlightsCloseButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.white,
+  },
 });
+

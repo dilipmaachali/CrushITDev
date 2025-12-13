@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '@/theme';
+import { api } from '@/services';
 
 interface Player {
   id: string;
@@ -18,7 +19,17 @@ interface Player {
 }
 
 export default function CricketMatchSetupScreen({ route, navigation }: any) {
-  const { gameId } = route.params;
+  const { gameId, matchName, matchType: initialMatchType } = route.params || {};
+  
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingLeft: 16 }}>
+          <Text style={{ fontSize: 18, color: colors.primary }}>←</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
   
   const [team1Name, setTeam1Name] = useState('');
   const [team2Name, setTeam2Name] = useState('');
@@ -115,12 +126,38 @@ export default function CricketMatchSetupScreen({ route, navigation }: any) {
     };
 
     try {
+      // Combine all players for the players array
+      const allPlayers = [
+        ...team1Players.map(p => ({ ...p, score: 0 })),
+        ...team2Players.map(p => ({ ...p, score: 0 }))
+      ];
+
+      // Save to API
+      const matchData = {
+        name: matchName || `${team1Name} vs ${team2Name}`,
+        type: initialMatchType || 'practice',
+        players: allPlayers,
+        team1: { name: team1Name, players: team1Players },
+        team2: { name: team2Name, players: team2Players },
+        tossWinner: tossWinner === 'team1' ? team1Name : team2Name,
+        tossDecision,
+        overs: parseInt(overs),
+        matchType,
+      };
+
+      const response = await api.post('/api/matches', {
+        sport: 'cricket',
+        matchData,
+        status: 'in-progress',
+      });
+
+      // Also save to AsyncStorage for backward compatibility
       const matchesJson = await AsyncStorage.getItem('cricketMatches');
       const matches = matchesJson ? JSON.parse(matchesJson) : [];
       matches.push(match);
       await AsyncStorage.setItem('cricketMatches', JSON.stringify(matches));
 
-      navigation.replace('CricketScoring', { gameId });
+      navigation.replace('CricketScoring', { gameId: response.data.id });
     } catch (error) {
       console.error('Error starting match:', error);
       Alert.alert('Error', 'Failed to start match');

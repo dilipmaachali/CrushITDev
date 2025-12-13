@@ -25,6 +25,7 @@ export { default as FootballMatchSetupScreen } from './FootballMatchSetupScreen'
 export { default as GamesScreen } from './GamesScreen';
 export { default as CreateGameScreen } from './CreateGameScreen';
 export { default as EditGameScreen } from './EditGameScreen';
+export { default as GameDetailsScreen } from './Games/GameDetailsScreen';
 export { default as ManagePlayersScreen } from './ManagePlayersScreen';
 export { default as FindPlayersScreen } from './FindPlayersScreen';
 export { default as MoreScreen } from './MoreScreen';

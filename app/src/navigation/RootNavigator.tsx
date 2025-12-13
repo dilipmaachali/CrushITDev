@@ -28,10 +28,15 @@ import {
   GamesScreen,
   CreateGameScreen,
   EditGameScreen,
+  GameDetailsScreen,
   ManagePlayersScreen,
   FindPlayersScreen,
   MoreScreen,
 } from '@/screens';
+import SelectSportScreen from '@/screens/SelectSportScreen';
+import SelectArenaScreen from '@/screens/SelectArenaScreen';
+import SelectDateScreen from '@/screens/SelectDateScreen';
+import SelectTimeScreen from '@/screens/SelectTimeScreen';
 import { FloatingChat } from '@/components';
 import { GalaxyBackground } from '@/components/GalaxyBackground';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -148,6 +153,36 @@ function ScoringStack() {
         component={GameSummaryScreen}
         options={{ headerTitle: 'Game Summary' }}
       />
+      <Stack.Screen
+        name="CricketScoring"
+        component={CricketScoringScreen}
+        options={{ headerTitle: 'Cricket Scoring' }}
+      />
+      <Stack.Screen
+        name="CricketMatchSetup"
+        component={CricketMatchSetupScreen}
+        options={{ headerTitle: 'Cricket Setup' }}
+      />
+      <Stack.Screen
+        name="BadmintonScoring"
+        component={BadmintonScoringScreen}
+        options={{ headerTitle: 'Badminton Scoring' }}
+      />
+      <Stack.Screen
+        name="BadmintonMatchSetup"
+        component={BadmintonMatchSetupScreen}
+        options={{ headerTitle: 'Badminton Setup' }}
+      />
+      <Stack.Screen
+        name="FootballScoring"
+        component={FootballScoringScreen}
+        options={{ headerTitle: 'Football Scoring' }}
+      />
+      <Stack.Screen
+        name="FootballMatchSetup"
+        component={FootballMatchSetupScreen}
+        options={{ headerTitle: 'Football Setup' }}
+      />
     </Stack.Navigator>
   );
 }
@@ -173,9 +208,34 @@ function GamesStack() {
         options={{ headerTitle: 'Create Game' }}
       />
       <Stack.Screen
+        name="SelectSport"
+        component={SelectSportScreen}
+        options={{ headerTitle: 'Select Sport', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="SelectArena"
+        component={SelectArenaScreen}
+        options={{ headerTitle: 'Select Arena', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="SelectDate"
+        component={SelectDateScreen}
+        options={{ headerTitle: 'Select Date', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="SelectTime"
+        component={SelectTimeScreen}
+        options={{ headerTitle: 'Select Time', presentation: 'modal' }}
+      />
+      <Stack.Screen
         name="EditGame"
         component={EditGameScreen}
         options={{ headerTitle: 'Edit Game' }}
+      />
+      <Stack.Screen
+        name="GameDetails"
+        component={GameDetailsScreen}
+        options={{ headerTitle: 'Game Details' }}
       />
       <Stack.Screen
         name="CricketScoring"

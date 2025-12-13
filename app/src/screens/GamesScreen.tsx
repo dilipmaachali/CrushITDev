@@ -1,38 +1,39 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import CalendarScreen from './Games/CalendarScreen';
-import JoinScreen from './Games/JoinScreen';
+import MyGamesScreen from './Games/MyGamesScreen';
+import RecommendedScreen from './Games/RecommendedScreen';
 import { colors } from '@/theme';
 
 export default function GamesScreen() {
-  const [activeTab, setActiveTab] = useState<'calendar' | 'join'>('calendar');
+  const [activeTab, setActiveTab] = useState<'myCrushList' | 'recommended'>('myCrushList');
 
   return (
     <View style={styles.container}>
       {/* Tab Header */}
       <View style={styles.tabHeader}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'calendar' && styles.activeTab]}
-          onPress={() => setActiveTab('calendar')}
+          style={[styles.tab, activeTab === 'myCrushList' && styles.activeTab]}
+          onPress={() => setActiveTab('myCrushList')}
         >
-          <Text style={[styles.tabText, activeTab === 'calendar' && styles.activeTabText]}>
-            Calendar
+          <Text style={[styles.tabText, activeTab === 'myCrushList' && styles.activeTabText]}>
+            My Crush List
           </Text>
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.tab, activeTab === 'join' && styles.activeTab]}
-          onPress={() => setActiveTab('join')}
+          style={[styles.tab, activeTab === 'recommended' && styles.activeTab]}
+          onPress={() => setActiveTab('recommended')}
         >
-          <Text style={[styles.tabText, activeTab === 'join' && styles.activeTabText]}>
-            Join
+          <Text style={[styles.tabText, activeTab === 'recommended' && styles.activeTabText]}>
+            Recommended
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Tab Content */}
       <View style={styles.content}>
-        {activeTab === 'calendar' ? <CalendarScreen /> : <JoinScreen />}
+        {activeTab === 'myCrushList' && <MyGamesScreen />}
+        {activeTab === 'recommended' && <RecommendedScreen />}
       </View>
     </View>
   );

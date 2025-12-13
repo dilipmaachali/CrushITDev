@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Modal,
 } from 'react-native';
 import { colors } from '@/theme';
+import { api } from '@/services';
 
 const FORMATIONS = ['4-4-2', '4-3-3', '3-5-2', '4-2-3-1', '3-4-3', '5-3-2'];
 const POSITIONS = ['GK', 'DEF', 'MID', 'FWD'] as const;
@@ -24,7 +25,17 @@ interface Player {
 }
 
 export default function FootballMatchSetupScreen({ route, navigation }: any) {
-  const { gameId } = route.params;
+  const { gameId, matchName, matchType: initialMatchType } = route.params || {};
+  
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ paddingLeft: 16 }}>
+          <Text style={{ fontSize: 18, color: colors.primary }}>←</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
   
   const [homeTeamName, setHomeTeamName] = useState('Home Team');
   const [awayTeamName, setAwayTeamName] = useState('Away Team');
@@ -100,7 +111,7 @@ export default function FootballMatchSetupScreen({ route, navigation }: any) {
     Alert.alert('Success', 'Quick lineup generated! You can edit player names and numbers.');
   };
 
-  const startMatch = () => {
+  const startMatch = async () => {
     // Validation
     if (!homeTeamName.trim() || !awayTeamName.trim()) {
       Alert.alert('Error', 'Please enter both team names');
@@ -193,8 +204,33 @@ export default function FootballMatchSetupScreen({ route, navigation }: any) {
       updatedAt: new Date().toISOString(),
     };
 
-    // Navigate to scoring screen
-    navigation.replace('FootballScoring', { gameId, match });
+    try {
+      // Combine all players for the players array
+      const allPlayers = [
+        ...homePlayers.map(p => ({ id: p.id, name: p.name, score: 0 })),
+        ...awayPlayers.map(p => ({ id: p.id, name: p.name, score: 0 }))
+      ];
+
+      // Save to API
+      const matchDataToSave = {
+        ...match,
+        name: matchName || `${homeTeamName} vs ${awayTeamName}`,
+        type: initialMatchType || 'practice',
+        players: allPlayers,
+      };
+
+      const response = await api.post('/api/matches', {
+        sport: 'football',
+        matchData: matchDataToSave,
+        status: 'in-progress',
+      });
+
+      // Navigate to scoring screen
+      navigation.replace('FootballScoring', { gameId: response.data.id, match });
+    } catch (error) {
+      console.error('Error starting match:', error);
+      Alert.alert('Error', 'Failed to start match');
+    }
   };
 
   const toggleCaptain = (playerId: string, team: 'home' | 'away') => {

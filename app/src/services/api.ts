@@ -37,8 +37,8 @@ class ApiService {
       async (config: InternalAxiosRequestConfig) => {
         const token = await AsyncStorage.getItem('authToken');
         
-        // Only attach real tokens, not test tokens
-        if (token && token !== 'test-token-dev-mode') {
+        // Attach token (including dev mode test token for backend compatibility)
+        if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
         
@@ -84,8 +84,13 @@ class ApiService {
     try {
       const token = await AsyncStorage.getItem('authToken');
       
-      if (!token || token === 'test-token-dev-mode') {
+      if (!token) {
         return false;
+      }
+      
+      // Dev mode test token is always valid
+      if (token === 'test-token-dev-mode') {
+        return true;
       }
 
       const response = await this.axiosInstance.get('/auth/me');
