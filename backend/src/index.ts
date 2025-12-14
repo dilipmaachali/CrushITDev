@@ -711,6 +711,11 @@ app.use(errorHandler);
 // Connect to MongoDB and start server
 (async () => {
   try {
+    // Validate required environment variables
+    if (!MONGODB_URI) {
+      throw new Error('❌ MONGODB_URI environment variable is not defined. Please check your .env file.');
+    }
+
     // Connect to MongoDB
     console.log('🔄 Connecting to MongoDB...');
     await mongoose.connect(MONGODB_URI);
@@ -727,9 +732,6 @@ app.use(errorHandler);
       console.log(`   Network: http://192.168.29.41:${PORT} (for Expo Go)`);
       console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
       console.log(`✅ Default test accounts ready:`);
-      console.log(`   - user@example.com (password: password123)`);
-      console.log(`   - demo@test.com (password: password123)`);
-      console.log(`   - test@crushit.com (password: password123)`);
     });
   } catch (err) {
     console.error('❌ Failed to initialize backend:', err);
