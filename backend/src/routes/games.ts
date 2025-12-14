@@ -1,48 +1,23 @@
 import { Router } from 'express';
 import { authMiddleware, AuthenticatedRequest } from '@/middleware/auth';
+import { ScheduledGame } from '@/models/ScheduledGame';
+import { GameChat } from '@/models/GameChat';
 
 const router = Router();
-
-// In-memory storage (TODO: Replace with MongoDB once connected)
-interface Game {
-  id: string;
-  userId: string;
-  title?: string;
-  sport: string;
-  scheduledDate: string;
-  startTime: string;
-  endTime?: string;
-  location?: any;
-  maxPlayers?: number;
-  minPlayers?: number;
-  currentPlayers?: any[];
-  status?: string;
-  paymentType?: string;
-  costPerPlayer?: number;
-  isPublic?: boolean;
-  genderRestriction?: string;
-  shareCode?: string;
-  hostId?: string;
-  hostName?: string;
-  coHosts?: any[];
-  inviteRequests?: any[];
-  sentInvites?: any[];
-  description?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-let games: Game[] = [];
 
 // Get all games (user's games only)
 router.get('/', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
     const userId = req.userId;
     
-    // Filter games by user
-    const userGames = userId 
-      ? games.filter(g => g.userId === userId || g.hostId === userId)
-      : [];
+    // Find games where user is host, co-host, or player
+    const userGames = await ScheduledGame.find({
+      $or: [
+        { hostId: userId },
+        { 'coHosts.userId': userId },
+        { 'currentPlayers.userId': userId }
+      ]
+    }).sort({ scheduledDate: 1 });
 
     res.json(userGames);
   } catch (error: any) {
@@ -53,13 +28,13 @@ router.get('/', authMiddleware, async (req: AuthenticatedRequest, res) => {
 // Get game by ID
 router.get('/:id', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const game = games.find(g => g.id === req.params.id);
+    const game = await ScheduledGame.findOne({ gameId: req.params.id });
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
     
     // Allow access if game is public or user is host/player
-    const isHost = game.userId === req.userId || game.hostId === req.userId;
+    const isHost = game.hostId === req.userId;
     const isPlayer = game.currentPlayers?.some(p => p.userId === req.userId);
     const isCoHost = game.coHosts?.some(ch => ch.userId === req.userId);
     
@@ -85,22 +60,23 @@ router.post('/', authMiddleware, async (req: AuthenticatedRequest, res) => {
     const sportName = req.body.sportName || req.body.sport || 'Game';
     const gameTitle = `${userName} ${sportName} Game`;
 
-    const gameData: Game = {
-      id: `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      userId: req.userId,
+    const gameData = new ScheduledGame({
+      gameId: `game_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       ...req.body,
-      title: gameTitle,  // Override title with formatted version
+      title: gameTitle,
       hostId: req.userId,
       hostName: req.body.hostName || userName,
       currentPlayers: req.body.currentPlayers || [],
       coHosts: req.body.coHosts || [],
       inviteRequests: req.body.inviteRequests || [],
       sentInvites: req.body.sentInvites || [],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
+      status: req.body.status || 'scheduled',
+      currency: req.body.currency || 'INR',
+      isPublic: req.body.isPublic !== undefined ? req.body.isPublic : true,
+      allowJoinRequests: req.body.allowJoinRequests !== undefined ? req.body.allowJoinRequests : true,
+    });
 
-    games.push(gameData);
+    await gameData.save();
     res.status(201).json(gameData);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -114,15 +90,13 @@ router.put('/:id', authMiddleware, async (req: AuthenticatedRequest, res) => {
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const gameIndex = games.findIndex(g => g.id === req.params.id);
-    if (gameIndex === -1) {
+    const game = await ScheduledGame.findOne({ gameId: req.params.id });
+    if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
 
-    const game = games[gameIndex];
-
-    // Check if user is host or owner
-    const isHost = game.hostId === req.userId || game.userId === req.userId;
+    // Check if user is host or co-host
+    const isHost = game.hostId === req.userId;
     const isCoHost = game.coHosts?.some(ch => ch.userId === req.userId);
 
     if (!isHost && !isCoHost) {
@@ -130,16 +104,10 @@ router.put('/:id', authMiddleware, async (req: AuthenticatedRequest, res) => {
     }
 
     // Update game
-    const updatedGame = {
-      ...game,
-      ...req.body,
-      id: game.id, // Keep original ID
-      userId: game.userId, // Keep original userId
-      updatedAt: new Date()
-    };
-
-    games[gameIndex] = updatedGame;
-    res.json(updatedGame);
+    Object.assign(game, req.body);
+    await game.save();
+    
+    res.json(game);
   } catch (error: any) {
     res.status(400).json({ error: error.message });
   }
@@ -152,20 +120,16 @@ router.delete('/:id', authMiddleware, async (req: AuthenticatedRequest, res) => 
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
-    const gameIndex = games.findIndex(g => g.id === req.params.id);
-    if (gameIndex === -1) {
+    const game = await ScheduledGame.findOne({ gameId: req.params.id });
+    if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
 
-    const game = games[gameIndex];
-
-    if (game.hostId !== req.userId && game.userId !== req.userId) {
+    if (game.hostId !== req.userId) {
       return res.status(403).json({ error: 'Only host can delete game' });
     }
 
-    // Remove from array
-    games.splice(gameIndex, 1);
-
+    await ScheduledGame.deleteOne({ gameId: req.params.id });
     res.json({ message: 'Game deleted successfully' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -175,12 +139,10 @@ router.delete('/:id', authMiddleware, async (req: AuthenticatedRequest, res) => 
 // Join game
 router.post('/:id/join', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const game = games.find(g => g.id === req.params.id);
+    const game = await ScheduledGame.findOne({ gameId: req.params.id });
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
-
-    if (!game.currentPlayers) game.currentPlayers = [];
 
     // Check if already joined
     if (game.currentPlayers.some(p => p.userId === req.userId)) {
@@ -188,18 +150,20 @@ router.post('/:id/join', authMiddleware, async (req: AuthenticatedRequest, res) 
     }
 
     // Check if game is full
-    if (game.currentPlayers.length >= (game.maxPlayers || 4)) {
+    if (game.currentPlayers.length >= game.maxPlayers) {
       return res.status(400).json({ error: 'Game is full' });
     }
 
     // Add player
     game.currentPlayers.push({
       userId: req.userId!,
-      userName: req.userName || 'Player',
-      status: 'joined',
+      userName: req.body.userName || req.userName || 'Player',
+      gender: req.body.gender || 'other',
+      joinedAt: new Date(),
+      status: 'confirmed',
     });
 
-    game.updatedAt = new Date();
+    await game.save();
     res.json(game);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -209,16 +173,14 @@ router.post('/:id/join', authMiddleware, async (req: AuthenticatedRequest, res) 
 // Leave game
 router.post('/:id/leave', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const game = games.find(g => g.id === req.params.id);
+    const game = await ScheduledGame.findOne({ gameId: req.params.id });
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
 
-    if (!game.currentPlayers) game.currentPlayers = [];
-
     // Remove player
     game.currentPlayers = game.currentPlayers.filter(p => p.userId !== req.userId);
-    game.updatedAt = new Date();
+    await game.save();
     
     res.json(game);
   } catch (error: any) {
@@ -229,17 +191,15 @@ router.post('/:id/leave', authMiddleware, async (req: AuthenticatedRequest, res)
 // Add co-host (host only)
 router.post('/:id/add-cohost', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const game = games.find(g => g.id === req.params.id);
+    const game = await ScheduledGame.findOne({ gameId: req.params.id });
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
 
     // Check if user is host
-    if (game.hostId !== req.userId && game.userId !== req.userId) {
+    if (game.hostId !== req.userId) {
       return res.status(403).json({ error: 'Only host can add co-hosts' });
     }
-
-    if (!game.coHosts) game.coHosts = [];
 
     const { playerId } = req.body;
     if (!playerId) {
@@ -252,7 +212,7 @@ router.post('/:id/add-cohost', authMiddleware, async (req: AuthenticatedRequest,
     }
 
     // Find player in current players
-    const player = game.currentPlayers?.find(p => p.userId === playerId);
+    const player = game.currentPlayers.find(p => p.userId === playerId);
     if (!player) {
       return res.status(400).json({ error: 'Player not in game' });
     }
@@ -261,9 +221,10 @@ router.post('/:id/add-cohost', authMiddleware, async (req: AuthenticatedRequest,
     game.coHosts.push({
       userId: player.userId,
       userName: player.userName,
+      addedAt: new Date(),
     });
 
-    game.updatedAt = new Date();
+    await game.save();
     res.json(game);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -273,17 +234,15 @@ router.post('/:id/add-cohost', authMiddleware, async (req: AuthenticatedRequest,
 // Remove co-host (host only)
 router.post('/:id/remove-cohost', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const game = games.find(g => g.id === req.params.id);
+    const game = await ScheduledGame.findOne({ gameId: req.params.id });
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
 
     // Check if user is host
-    if (game.hostId !== req.userId && game.userId !== req.userId) {
+    if (game.hostId !== req.userId) {
       return res.status(403).json({ error: 'Only host can remove co-hosts' });
     }
-
-    if (!game.coHosts) game.coHosts = [];
 
     const { playerId } = req.body;
     if (!playerId) {
@@ -292,7 +251,7 @@ router.post('/:id/remove-cohost', authMiddleware, async (req: AuthenticatedReque
 
     // Remove co-host
     game.coHosts = game.coHosts.filter(ch => ch.userId !== playerId);
-    game.updatedAt = new Date();
+    await game.save();
     
     res.json(game);
   } catch (error: any) {
@@ -303,14 +262,14 @@ router.post('/:id/remove-cohost', authMiddleware, async (req: AuthenticatedReque
 // Remove player (host or co-host only)
 router.post('/:id/remove-player', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const game = games.find(g => g.id === req.params.id);
+    const game = await ScheduledGame.findOne({ gameId: req.params.id });
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
 
     // Check if user is host or co-host
-    const isHost = game.hostId === req.userId || game.userId === req.userId;
-    const isCoHost = game.coHosts?.some(ch => ch.userId === req.userId);
+    const isHost = game.hostId === req.userId;
+    const isCoHost = game.coHosts.some(ch => ch.userId === req.userId);
 
     if (!isHost && !isCoHost) {
       return res.status(403).json({ error: 'Only host or co-host can remove players' });
@@ -322,21 +281,16 @@ router.post('/:id/remove-player', authMiddleware, async (req: AuthenticatedReque
     }
 
     // Cannot remove host
-    if (playerId === game.hostId || playerId === game.userId) {
+    if (playerId === game.hostId) {
       return res.status(400).json({ error: 'Cannot remove host' });
     }
 
     // Remove player
-    if (game.currentPlayers) {
-      game.currentPlayers = game.currentPlayers.filter(p => p.userId !== playerId);
-    }
-
+    game.currentPlayers = game.currentPlayers.filter(p => p.userId !== playerId);
     // Also remove from co-hosts if present
-    if (game.coHosts) {
-      game.coHosts = game.coHosts.filter(ch => ch.userId !== playerId);
-    }
+    game.coHosts = game.coHosts.filter(ch => ch.userId !== playerId);
 
-    game.updatedAt = new Date();
+    await game.save();
     res.json(game);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -346,22 +300,23 @@ router.post('/:id/remove-player', authMiddleware, async (req: AuthenticatedReque
 // Mark game as full/open (host or co-host only)
 router.post('/:id/mark-full', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const game = games.find(g => g.id === req.params.id);
+    const game = await ScheduledGame.findOne({ gameId: req.params.id });
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
 
     // Check if user is host or co-host
-    const isHost = game.hostId === req.userId || game.userId === req.userId;
-    const isCoHost = game.coHosts?.some(ch => ch.userId === req.userId);
+    const isHost = game.hostId === req.userId;
+    const isCoHost = game.coHosts.some(ch => ch.userId === req.userId);
 
     if (!isHost && !isCoHost) {
       return res.status(403).json({ error: 'Only host or co-host can manage game status' });
     }
 
-    // Toggle between full and scheduled
-    game.status = game.status === 'full' ? 'scheduled' : 'full';
-    game.updatedAt = new Date();
+    // Toggle between scheduled and completed (or implement your logic)
+    const currentlyFull = game.currentPlayers.length >= game.maxPlayers;
+    game.status = currentlyFull ? 'scheduled' : 'completed';
+    await game.save();
     
     res.json(game);
   } catch (error: any) {
@@ -372,14 +327,14 @@ router.post('/:id/mark-full', authMiddleware, async (req: AuthenticatedRequest, 
 // Accept join request (host or co-host only)
 router.post('/:id/accept-request', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const game = games.find(g => g.id === req.params.id);
+    const game = await ScheduledGame.findOne({ gameId: req.params.id });
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
 
     // Check if user is host or co-host
-    const isHost = game.hostId === req.userId || game.userId === req.userId;
-    const isCoHost = game.coHosts?.some(ch => ch.userId === req.userId);
+    const isHost = game.hostId === req.userId;
+    const isCoHost = game.coHosts.some(ch => ch.userId === req.userId);
 
     if (!isHost && !isCoHost) {
       return res.status(403).json({ error: 'Only host or co-host can accept requests' });
@@ -390,9 +345,6 @@ router.post('/:id/accept-request', authMiddleware, async (req: AuthenticatedRequ
       return res.status(400).json({ error: 'Player ID required' });
     }
 
-    if (!game.inviteRequests) game.inviteRequests = [];
-    if (!game.currentPlayers) game.currentPlayers = [];
-
     // Find request
     const request = game.inviteRequests.find(r => r.userId === playerId);
     if (!request) {
@@ -400,18 +352,21 @@ router.post('/:id/accept-request', authMiddleware, async (req: AuthenticatedRequ
     }
 
     // Check if game is full
-    if (game.currentPlayers.length >= (game.maxPlayers || 4)) {
+    if (game.currentPlayers.length >= game.maxPlayers) {
       return res.status(400).json({ error: 'Game is full' });
     }
 
     // Move from requests to players
     game.currentPlayers.push({
-      ...request,
-      status: 'joined',
+      userId: request.userId,
+      userName: request.userName,
+      gender: request.gender,
+      joinedAt: new Date(),
+      status: 'confirmed',
     });
 
     game.inviteRequests = game.inviteRequests.filter(r => r.userId !== playerId);
-    game.updatedAt = new Date();
+    await game.save();
     
     res.json(game);
   } catch (error: any) {
@@ -422,14 +377,14 @@ router.post('/:id/accept-request', authMiddleware, async (req: AuthenticatedRequ
 // Reject join request (host or co-host only)
 router.post('/:id/reject-request', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const game = games.find(g => g.id === req.params.id);
+    const game = await ScheduledGame.findOne({ gameId: req.params.id });
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
 
     // Check if user is host or co-host
-    const isHost = game.hostId === req.userId || game.userId === req.userId;
-    const isCoHost = game.coHosts?.some(ch => ch.userId === req.userId);
+    const isHost = game.hostId === req.userId;
+    const isCoHost = game.coHosts.some(ch => ch.userId === req.userId);
 
     if (!isHost && !isCoHost) {
       return res.status(403).json({ error: 'Only host or co-host can reject requests' });
@@ -440,11 +395,9 @@ router.post('/:id/reject-request', authMiddleware, async (req: AuthenticatedRequ
       return res.status(400).json({ error: 'Player ID required' });
     }
 
-    if (!game.inviteRequests) game.inviteRequests = [];
-
     // Remove request
     game.inviteRequests = game.inviteRequests.filter(r => r.userId !== playerId);
-    game.updatedAt = new Date();
+    await game.save();
     
     res.json(game);
   } catch (error: any) {
@@ -452,30 +405,18 @@ router.post('/:id/reject-request', authMiddleware, async (req: AuthenticatedRequ
   }
 });
 
-// Chat storage
-interface ChatMessage {
-  id: string;
-  gameId: string;
-  userId: string;
-  userName: string;
-  message: string;
-  timestamp: Date;
-}
-
-let chatMessages: ChatMessage[] = [];
-
 // Get chat messages for a game
 router.get('/:id/chat', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const game = games.find(g => g.id === req.params.id);
+    const game = await ScheduledGame.findOne({ gameId: req.params.id });
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
 
-    // Get messages for this game
-    const messages = chatMessages
-      .filter(m => m.gameId === req.params.id)
-      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    // Get messages for this game from MongoDB
+    const messages = await GameChat.find({ gameId: req.params.id })
+      .sort({ createdAt: 1 })
+      .limit(100);
 
     res.json(messages);
   } catch (error: any) {
@@ -486,7 +427,7 @@ router.get('/:id/chat', authMiddleware, async (req: AuthenticatedRequest, res) =
 // Send chat message
 router.post('/:id/chat', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
-    const game = games.find(g => g.id === req.params.id);
+    const game = await ScheduledGame.findOne({ gameId: req.params.id });
     if (!game) {
       return res.status(404).json({ error: 'Game not found' });
     }
@@ -496,16 +437,14 @@ router.post('/:id/chat', authMiddleware, async (req: AuthenticatedRequest, res) 
       return res.status(400).json({ error: 'Message required' });
     }
 
-    const chatMessage: ChatMessage = {
-      id: `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    const chatMessage = new GameChat({
       gameId: req.params.id,
       userId: req.userId!,
-      userName: req.userName || 'User',
+      userName: req.body.userName || req.userName || 'User',
       message: message.trim(),
-      timestamp: new Date(),
-    };
+    });
 
-    chatMessages.push(chatMessage);
+    await chatMessage.save();
     res.status(201).json(chatMessage);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

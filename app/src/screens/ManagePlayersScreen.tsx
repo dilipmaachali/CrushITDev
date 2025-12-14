@@ -58,40 +58,28 @@ export default function ManagePlayersScreen({ route, navigation }: any) {
       return;
     }
 
-    const updatedGame = {
-      ...game,
-      currentPlayers: [
-        ...game.currentPlayers,
-        {
-          userId: request.userId,
-          userName: request.userName,
-          gender: request.gender,
-          status: 'confirmed',
-          joinedAt: new Date().toISOString(),
-        },
-      ],
-      inviteRequests: game.inviteRequests.map((r: any) =>
-        r.userId === requestId ? { ...r, status: 'accepted' } : r
-      ),
-    };
-
-    await saveGame(updatedGame);
-    Alert.alert('Request Accepted', `${request.userName} has been added to the game`);
+    try {
+      await api.post(`/api/games/${gameId}/accept-request`, { playerId: requestId });
+      await loadGame(); // Reload game data
+      Alert.alert('Request Accepted', `${request.userName} has been added to the game`);
+    } catch (error) {
+      console.error('Error accepting request:', error);
+      Alert.alert('Error', 'Failed to accept request');
+    }
   };
 
   const rejectRequest = async (requestId: string) => {
     const request = game.inviteRequests.find((r: any) => r.userId === requestId);
     if (!request) return;
 
-    const updatedGame = {
-      ...game,
-      inviteRequests: game.inviteRequests.map((r: any) =>
-        r.userId === requestId ? { ...r, status: 'rejected' } : r
-      ),
-    };
-
-    await saveGame(updatedGame);
-    Alert.alert('Request Rejected', `${request.userName}'s request has been rejected`);
+    try {
+      await api.post(`/api/games/${gameId}/reject-request`, { playerId: requestId });
+      await loadGame(); // Reload game data
+      Alert.alert('Request Rejected', `${request.userName}'s request has been rejected`);
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      Alert.alert('Error', 'Failed to reject request');
+    }
   };
 
   const removePlayer = async (playerId: string) => {
@@ -107,11 +95,14 @@ export default function ManagePlayersScreen({ route, navigation }: any) {
           text: 'Remove',
           style: 'destructive',
           onPress: async () => {
-            const updatedGame = {
-              ...game,
-              currentPlayers: game.currentPlayers.filter((p: any) => p.userId !== playerId),
-            };
-            await saveGame(updatedGame);
+            try {
+              await api.post(`/api/games/${gameId}/remove-player`, { playerId });
+              await loadGame();
+              Alert.alert('Player Removed', `${player.userName} has been removed`);
+            } catch (error) {
+              console.error('Error removing player:', error);
+              Alert.alert('Error', 'Failed to remove player');
+            }
           },
         },
       ]
@@ -124,21 +115,15 @@ export default function ManagePlayersScreen({ route, navigation }: any) {
       return;
     }
 
-    const updatedGame = {
-      ...game,
-      coHosts: [
-        ...game.coHosts,
-        {
-          userId,
-          userName,
-          addedAt: new Date().toISOString(),
-        },
-      ],
-    };
-
-    await saveGame(updatedGame);
-    setShowCoHostModal(false);
-    Alert.alert('Co-host Added', `${userName} is now a co-host`);
+    try {
+      await api.post(`/api/games/${gameId}/add-cohost`, { playerId: userId });
+      await loadGame();
+      setShowCoHostModal(false);
+      Alert.alert('Co-host Added', `${userName} is now a co-host`);
+    } catch (error) {
+      console.error('Error adding co-host:', error);
+      Alert.alert('Error', 'Failed to add co-host');
+    }
   };
 
   const removeCoHost = async (userId: string) => {
@@ -154,11 +139,14 @@ export default function ManagePlayersScreen({ route, navigation }: any) {
           text: 'Remove',
           style: 'destructive',
           onPress: async () => {
-            const updatedGame = {
-              ...game,
-              coHosts: game.coHosts.filter((ch: any) => ch.userId !== userId),
-            };
-            await saveGame(updatedGame);
+            try {
+              await api.post(`/api/games/${gameId}/remove-cohost`, { playerId: userId });
+              await loadGame();
+              Alert.alert('Co-host Removed', `${coHost.userName} is no longer a co-host`);
+            } catch (error) {
+              console.error('Error removing co-host:', error);
+              Alert.alert('Error', 'Failed to remove co-host');
+            }
           },
         },
       ]

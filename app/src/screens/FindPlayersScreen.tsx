@@ -285,7 +285,7 @@ function PlayerCard({ player, onConnect }: any) {
       {player.bio && <Text style={styles.playerBio}>"{player.bio}"</Text>}
 
       <View style={styles.sportsRow}>
-        {player.sports.map((sport, index) => (
+        {player.sports.map((sport: any, index: number) => (
           <View key={index} style={styles.sportTag}>
             <Text style={styles.sportTagText}>
               {sport.sport} • {sport.skillLevel}

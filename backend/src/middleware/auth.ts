@@ -7,7 +7,7 @@ export interface AuthenticatedRequest extends Request {
   userName?: string;
 }
 
-export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const authMiddleware = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
     
@@ -30,6 +30,15 @@ export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: N
 
     if (!decoded) {
       return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    // Check if userId is valid MongoDB ObjectId format
+    // Old tokens might have string IDs like 'user_default_2' from in-memory storage
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(decoded.userId);
+    
+    if (!isValidObjectId) {
+      // Old token from in-memory storage - require re-login
+      return res.status(401).json({ error: 'Token expired. Please login again.' });
     }
 
     req.userId = decoded.userId;

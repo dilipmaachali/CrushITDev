@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
+import mongoose from 'mongoose';
 import { arenas, products, petcarePartners, users, chatMessages, chatTemplates, reviews, notifications, timeSlots, userPreferences, payments, wallets } from '@/data';
 import { ChatMessage, BookingCommand, AuthRequest, Review, Notification } from '@/models';
 import { AuthService } from '@/services/AuthService';
@@ -11,8 +13,12 @@ import playersRouter from '@/routes/players';
 import bookingsRouter from '@/routes/bookings';
 import matchesRouter from '@/routes/matches';
 
+// Load environment variables
+dotenv.config();
+
 const app = express();
 const PORT = parseInt(process.env.PORT || '4000', 10);
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/crushit';
 
 app.use(cors());
 app.use(express.json());
@@ -33,18 +39,23 @@ app.get('/', (_req, res) => {
 // Register
 app.post('/auth/register', async (req, res) => {
   try {
+    console.log('📝 Register request received:', { email: req.body.email, name: req.body.name });
     const { email, password, name } = req.body as AuthRequest & { name: string };
 
     if (!email || !password || !name) {
+      console.log('❌ Missing fields:', { email: !!email, password: !!password, name: !!name });
       return res.status(400).json({ error: 'Email, password, and name required' });
     }
 
     const user = await AuthService.registerUser(email, password, name);
-    const token = AuthService.generateToken(user.id, user.email);
+    const token = AuthService.generateToken(user._id.toString(), user.email);
 
-    const { password: _, ...userWithoutPassword } = user;
-    res.status(201).json({ token, user: userWithoutPassword });
+    const userObj = user.toObject();
+    const { password: _, ...userWithoutPassword } = userObj;
+    console.log('✅ User registered successfully:', userWithoutPassword.email);
+    res.status(201).json({ token, user: { ...userWithoutPassword, id: user._id.toString() } });
   } catch (error: any) {
+    console.log('❌ Registration error:', error.message);
     res.status(400).json({ error: error.message });
   }
 });
@@ -52,35 +63,39 @@ app.post('/auth/register', async (req, res) => {
 // Login
 app.post('/auth/login', async (req, res) => {
   try {
+    console.log('🔐 Login request received:', { email: req.body.email });
     const { email, password } = req.body as AuthRequest;
 
     if (!email || !password) {
+      console.log('❌ Missing credentials');
       return res.status(400).json({ error: 'Email and password required' });
     }
 
     const result = await AuthService.loginUser(email, password);
+    console.log('✅ Login successful:', email);
     res.json(result);
   } catch (error: any) {
+    console.log('❌ Login failed:', error.message);
     res.status(401).json({ error: error.message });
   }
 });
 
 // Get current user profile
-app.get('/auth/me', authMiddleware, (req: AuthenticatedRequest, res) => {
+app.get('/auth/me', authMiddleware, async (req: AuthenticatedRequest, res) => {
   if (!req.userId) return res.status(401).json({ error: 'Not authenticated' });
   
-  const user = AuthService.getUserById(req.userId);
+  const user = await AuthService.getUserById(req.userId);
   if (!user) return res.status(404).json({ error: 'User not found' });
   
   res.json(user);
 });
 
 // Update user profile
-app.put('/auth/profile', authMiddleware, (req: AuthenticatedRequest, res) => {
+app.put('/auth/profile', authMiddleware, async (req: AuthenticatedRequest, res) => {
   try {
     if (!req.userId) return res.status(401).json({ error: 'Not authenticated' });
 
-    const updated = AuthService.updateUserProfile(req.userId, req.body);
+    const updated = await AuthService.updateUserProfile(req.userId, req.body);
     if (!updated) return res.status(404).json({ error: 'User not found' });
 
     res.json(updated);
@@ -693,9 +708,15 @@ function handleViewIntent(message: string): string {
 // Error handling middleware
 app.use(errorHandler);
 
-// Initialize AuthService with default users BEFORE starting server
+// Connect to MongoDB and start server
 (async () => {
   try {
+    // Connect to MongoDB
+    console.log('🔄 Connecting to MongoDB...');
+    await mongoose.connect(MONGODB_URI);
+    console.log('✅ Connected to MongoDB successfully');
+    
+    // Initialize AuthService with default users
     await AuthService.initialize();
     console.log('✅ AuthService initialized with default test users');
     
@@ -711,7 +732,7 @@ app.use(errorHandler);
       console.log(`   - test@crushit.com (password: password123)`);
     });
   } catch (err) {
-    console.error('❌ Failed to initialize AuthService:', err);
+    console.error('❌ Failed to initialize backend:', err);
     process.exit(1);
   }
 })();

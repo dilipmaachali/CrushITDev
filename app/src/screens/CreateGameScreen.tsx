@@ -34,6 +34,19 @@ export default function CreateGameScreen({ navigation, route }: any) {
   const [bringTools, setBringTools] = useState(false);
   const [customNotes, setCustomNotes] = useState('');
 
+  // Clear form when screen gets focus (user navigates to this screen)
+  React.useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Only clear if not coming from selection screens
+      if (!route.params?.selectedSport && !route.params?.selectedArena && 
+          !route.params?.selectedDate && !route.params?.selectedTime) {
+        clearForm();
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
   // Handle return values from navigation
   React.useEffect(() => {
     if (route.params?.selectedSport) {
@@ -52,6 +65,24 @@ export default function CreateGameScreen({ navigation, route }: any) {
       setEndTime(route.params.selectedTime.end);
     }
   }, [route.params]);
+
+  // Function to clear all form fields
+  const clearForm = () => {
+    setSport('');
+    setSportName('');
+    setArenaName('');
+    setArenaLocation('');
+    setDate('');
+    setStartTime('');
+    setEndTime('');
+    setIsPublic(true);
+    setShowMoreSettings(false);
+    setGameType('Beginner');
+    setTotalPlayers('');
+    setCostShared(false);
+    setBringTools(false);
+    setCustomNotes('');
+  };
 
   const createGame = async () => {
     // Validation
@@ -119,6 +150,9 @@ export default function CreateGameScreen({ navigation, route }: any) {
     try {
       const response = await api.post('/api/games', newGame);
       console.log('Game created successfully:', response.data);
+      
+      // Clear the form
+      clearForm();
       
       // Navigate back to Games tab
       navigation.navigate('GamesList');
