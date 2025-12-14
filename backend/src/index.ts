@@ -18,7 +18,7 @@ dotenv.config();
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '4000', 10);
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/crushit';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 app.use(cors());
 app.use(express.json());
