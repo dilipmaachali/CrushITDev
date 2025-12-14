@@ -25,7 +25,7 @@ const DATABASE_NAME = process.env.DATABASE_NAME ;
 if (!process.env.MONGODB_URI) {
   console.log(' MONGODB_URI not set in environment variables');
 }else{
-  console.log("Railway MONGO_URI:", process.env.MONGO_URI);
+  console.log("Railway MONGODB_URI:", process.env.MONGODB_URI);
 }
 if (!process.env.DATABASE_NAME) {
   console.log('DATABASE_NAME not set in environment variables');
