@@ -47,18 +47,32 @@ const LoginSignupScreen: React.FC<LoginSignupScreenProps> = ({ navigation }) => 
       console.log('✅ Login response:', response.data);
       
       if (response.data.token) {
-        await AsyncStorage.setItem('authToken', response.data.token);
-        await AsyncStorage.setItem('userToken', response.data.token);
-        await AsyncStorage.setItem('userEmail', response.data.user.email);
-        await AsyncStorage.setItem('userId', response.data.user.id || response.data.user._id);
-        console.log('✅ Token saved, user logged in');
-        // App will automatically navigate via auth polling
+        try {
+          await AsyncStorage.setItem('authToken', response.data.token);
+          await AsyncStorage.setItem('userToken', response.data.token);
+          await AsyncStorage.setItem('userEmail', response.data.user.email);
+          await AsyncStorage.setItem('userId', response.data.user.id || response.data.user._id);
+          console.log('✅ Token saved, user logged in');
+          // App will automatically navigate via auth polling
+        } catch (storageError) {
+          console.error('❌ AsyncStorage error:', storageError);
+          Alert.alert('Error', 'Failed to save login data');
+        }
       }
     } catch (error: any) {
       console.log('❌ Login error:', error);
       console.log('❌ Error response:', error.response?.data);
       console.log('❌ Error message:', error.message);
-      const errorMsg = error.response?.data?.error || error.message || 'Invalid credentials';
+      
+      let errorMsg = 'Login failed';
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        errorMsg = 'Request timeout. Please check your internet connection.';
+      } else if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
+        errorMsg = 'Network error. Please check if backend is running at: ' + API_CONFIG.BASE_URL;
+      } else {
+        errorMsg = error.response?.data?.error || error.message || 'Invalid credentials';
+      }
+      
       Alert.alert('Login Failed', errorMsg);
     } finally {
       setLoading(false);
@@ -86,19 +100,33 @@ const LoginSignupScreen: React.FC<LoginSignupScreenProps> = ({ navigation }) => 
       console.log('✅ Signup response:', response.data);
       
       if (response.data.token) {
-        await AsyncStorage.setItem('authToken', response.data.token);
-        await AsyncStorage.setItem('userToken', response.data.token);
-        await AsyncStorage.setItem('userEmail', response.data.user.email);
-        await AsyncStorage.setItem('userId', response.data.user.id || response.data.user._id);
-        console.log('✅ Account created successfully');
-        Alert.alert('Success', 'Account created successfully!');
-        // App will automatically navigate via auth polling
+        try {
+          await AsyncStorage.setItem('authToken', response.data.token);
+          await AsyncStorage.setItem('userToken', response.data.token);
+          await AsyncStorage.setItem('userEmail', response.data.user.email);
+          await AsyncStorage.setItem('userId', response.data.user.id || response.data.user._id);
+          console.log('✅ Account created successfully');
+          Alert.alert('Success', 'Account created successfully!');
+          // App will automatically navigate via auth polling
+        } catch (storageError) {
+          console.error('❌ AsyncStorage error:', storageError);
+          Alert.alert('Error', 'Account created but failed to save login data');
+        }
       }
     } catch (error: any) {
       console.log('❌ Signup error:', error);
       console.log('❌ Error response:', error.response?.data);
       console.log('❌ Error message:', error.message);
-      const errorMsg = error.response?.data?.error || error.message || 'Registration failed';
+      
+      let errorMsg = 'Registration failed';
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        errorMsg = 'Request timeout. Please check your internet connection.';
+      } else if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
+        errorMsg = 'Network error. Please check if backend is running at: ' + API_CONFIG.BASE_URL;
+      } else {
+        errorMsg = error.response?.data?.error || error.message || 'Registration failed';
+      }
+      
       Alert.alert('Signup Failed', errorMsg);
     } finally {
       setLoading(false);
