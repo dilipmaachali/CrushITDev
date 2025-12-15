@@ -7,7 +7,7 @@ const LOCAL_API_URL = "http://192.168.29.41:4000";  // your machine IP
 const PROD_API_URL = "https://crushitdev-production.up.railway.app";
 
 // Toggle this manually for local development or production
-const USE_LOCAL_API = true;  // Set to false when deploying or testing with Railway backend
+const USE_LOCAL_API = false;  // Set to false when deploying or testing with Railway backend
 
 // Auto-switch based on flag
 const API_BASE_URL = USE_LOCAL_API ? LOCAL_API_URL : PROD_API_URL;
