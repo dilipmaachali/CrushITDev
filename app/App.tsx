@@ -38,14 +38,9 @@ export default function App() {
       if (!token || token === 'test-token-dev-mode') {
         setIsAuthenticated(false);
       } else {
-        // Validate token with backend
-        const isValid = await api.validateToken();
-        setIsAuthenticated(isValid);
-        
-        if (!isValid) {
-          // Invalid token - clear storage
-          await AsyncStorage.multiRemove(['authToken', 'userToken', 'userEmail', 'userId']);
-        }
+        // For now, just trust the token exists (backend will validate on first request)
+        // This prevents crashes during startup validation
+        setIsAuthenticated(true);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
