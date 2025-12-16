@@ -38,7 +38,6 @@ import SelectArenaScreen from '@/screens/SelectArenaScreen';
 import SelectDateScreen from '@/screens/SelectDateScreen';
 import SelectTimeScreen from '@/screens/SelectTimeScreen';
 import { FloatingChat } from '@/components';
-import { GalaxyBackground } from '@/components/GalaxyBackground';
 import { useTheme } from '@/contexts/ThemeContext';
 import { colors } from '@/theme';
 
@@ -434,11 +433,6 @@ export default function RootNavigator({ initialRouteName }: { initialRouteName?:
   
   return (
     <View style={{ flex: 1 }}>
-      {galaxyThemeEnabled && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          <GalaxyBackground />
-        </View>
-      )}
       <Stack.Navigator
         screenOptions={{
           headerShown: false,

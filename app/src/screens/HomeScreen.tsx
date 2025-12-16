@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
+
 import { colors } from '@/theme';
 
 const { width } = Dimensions.get('window');
@@ -35,6 +35,7 @@ interface ServiceCard {
 export default function HomeScreen({ navigation }: any) {
   const [userName, setUserName] = useState('User');
   const [activeSlide, setActiveSlide] = useState(0);
+  const [imageError, setImageError] = useState<{[key: string]: boolean}>({});
   const carouselRef = useRef<FlatList>(null);
 
   const sportsCarousel = [
@@ -116,12 +117,16 @@ export default function HomeScreen({ navigation }: any) {
   const renderServiceCard = (service: ServiceCard) => (
     <TouchableOpacity
       key={service.id}
-      style={styles.serviceCard}
+      style={[styles.serviceCard, { backgroundColor: service.gradient[0] }]}
       onPress={() => {
-        if ('screenParams' in service && service.screenParams) {
-          navigation.navigate(service.screen, service.screenParams);
-        } else {
-          navigation.navigate(service.screen);
+        try {
+          if ('screenParams' in service && service.screenParams) {
+            navigation.navigate(service.screen, service.screenParams);
+          } else {
+            navigation.navigate(service.screen);
+          }
+        } catch (e) {
+          console.error('Service card navigation error:', e);
         }
       }}
       activeOpacity={0.8}
@@ -129,21 +134,14 @@ export default function HomeScreen({ navigation }: any) {
       accessibilityLabel={`${service.title}: ${service.description}`}
       accessibilityRole="button"
     >
-      <LinearGradient
-        colors={service.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.serviceGradient}
-      >
-        <View style={styles.serviceContent}>
-          <Text style={styles.serviceIcon}>{service.icon}</Text>
-          <View style={styles.serviceTextContainer}>
-            <Text style={styles.serviceTitle}>{service.title}</Text>
-            <Text style={styles.serviceDescription}>{service.description}</Text>
-          </View>
-          <Text style={styles.serviceArrow}>→</Text>
+      <View style={styles.serviceContent}>
+        <Text style={styles.serviceIcon}>{service.icon}</Text>
+        <View style={styles.serviceTextContainer}>
+          <Text style={styles.serviceTitle}>{service.title}</Text>
+          <Text style={styles.serviceDescription}>{service.description}</Text>
         </View>
-      </LinearGradient>
+        <Text style={styles.serviceArrow}>→</Text>
+      </View>
     </TouchableOpacity>
   );
 
@@ -151,7 +149,13 @@ export default function HomeScreen({ navigation }: any) {
     <TouchableOpacity
       key={action.id}
       style={styles.quickActionCard}
-      onPress={action.action}
+      onPress={() => {
+        try {
+          action.action();
+        } catch (e) {
+          console.error('Quick action error:', e);
+        }
+      }}
       activeOpacity={0.7}
       accessible={true}
       accessibilityLabel={action.label}
@@ -163,122 +167,150 @@ export default function HomeScreen({ navigation }: any) {
   );
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>CrushIT here,</Text>
-          <Text style={styles.userName}>{userName} 👋</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.profileButton}
-          onPress={() => navigation.navigate('MoreTab', { screen: 'Profile' })}
-          accessible={true}
-          accessibilityLabel="Go to profile"
-          accessibilityRole="button"
-        >
-          <Text style={styles.profileIcon}>👤</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Quick Actions */}
-      <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.quickActionsScroll}
-          contentContainerStyle={styles.quickActionsContent}
-        >
-          {quickActions.map(renderQuickAction)}
-        </ScrollView>
-      </View>
-
-      {/* Sports Carousel */}
-      <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>Popular Sports</Text>
-        <View style={styles.carouselContainer}>
-          <FlatList
-            ref={carouselRef}
-            data={sportsCarousel}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item) => item.id}
-            onMomentumScrollEnd={(event) => {
-              const slideIndex = Math.round(
-                event.nativeEvent.contentOffset.x / CAROUSEL_WIDTH
-              );
-              setActiveSlide(slideIndex);
+    <View style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>CrushIT here,</Text>
+            <Text style={styles.userName}>{userName} 👋</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.profileButton}
+            onPress={() => {
+              try {
+                navigation.navigate('MoreTab', { screen: 'Profile' });
+              } catch (e) {
+                console.error('Navigation error:', e);
+              }
             }}
-            renderItem={({ item }) => (
-              <View style={styles.carouselSlide}>
-                <Image
-                  source={item.image}
-                  style={styles.carouselImage}
-                  resizeMode="cover"
-                />
-                {/* Dark gradient overlay for better text readability */}
-                <LinearGradient
-                  colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)']}
-                  style={styles.carouselGradient}
-                />
-                {/* Safe text zone - centered with margins */}
-                <View style={styles.carouselTextZone}>
-                  <Text style={styles.carouselTitle}>{item.name}</Text>
-                  <Text style={styles.carouselSubtitle}>Book Now & Play</Text>
-                  <TouchableOpacity 
-                    style={styles.carouselCTA}
-                    onPress={() => navigation.navigate('ArenasTab')}
-                  >
-                    <Text style={styles.carouselCTAText}>Explore Arenas</Text>
-                  </TouchableOpacity>
+            accessible={true}
+            accessibilityLabel="Go to profile"
+            accessibilityRole="button"
+          >
+            <Text style={styles.profileIcon}>👤</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.quickActionsScroll}
+            contentContainerStyle={styles.quickActionsContent}
+          >
+            {quickActions.map(renderQuickAction)}
+          </ScrollView>
+        </View>
+
+        {/* Sports Carousel */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Popular Sports</Text>
+          <View style={styles.carouselContainer}>
+            <FlatList
+              ref={carouselRef}
+              data={sportsCarousel}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item.id}
+              scrollEventThrottle={16}
+              onMomentumScrollEnd={(event) => {
+                try {
+                  const slideIndex = Math.round(
+                    event.nativeEvent.contentOffset.x / CAROUSEL_WIDTH
+                  );
+                  setActiveSlide(slideIndex);
+                } catch (e) {
+                  console.log('Carousel scroll error:', e);
+                }
+              }}
+              renderItem={({ item }) => (
+                <View style={styles.carouselSlide}>
+                  {!imageError[item.id] ? (
+                    <Image
+                      source={item.image}
+                      style={styles.carouselImage}
+                      resizeMode="cover"
+                      onError={() => {
+                        console.log('Image load error for:', item.id);
+                        setImageError(prev => ({...prev, [item.id]: true}));
+                      }}
+                    />
+                  ) : (
+                    <View
+                      style={[styles.carouselImage, { backgroundColor: '#667eea' }]}
+                    />
+                  )}
+                  {/* Dark overlay for better text readability */}
+                  <View
+                    style={[styles.carouselGradient, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
+                  />
+                  {/* Safe text zone - centered with margins */}
+                  <View style={styles.carouselTextZone}>
+                    <Text style={styles.carouselTitle}>{item.name}</Text>
+                    <Text style={styles.carouselSubtitle}>Book Now & Play</Text>
+                    <TouchableOpacity 
+                      style={styles.carouselCTA}
+                      onPress={() => {
+                        try {
+                          navigation.navigate('ArenasTab');
+                        } catch (e) {
+                          console.error('Navigation error:', e);
+                        }
+                      }}
+                    >
+                      <Text style={styles.carouselCTAText}>Explore Arenas</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            )}
-          />
-          <View style={styles.paginationContainer}>
-            {sportsCarousel.map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.paginationDot,
-                  index === activeSlide && styles.paginationDotActive,
-                ]}
-              />
-            ))}
+              )}
+            />
+            <View style={styles.paginationContainer}>
+              {sportsCarousel.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.paginationDot,
+                    index === activeSlide && styles.paginationDotActive,
+                  ]}
+                />
+              ))}
+            </View>
           </View>
         </View>
-      </View>
 
-      {/* Services */}
-      <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>Our Services</Text>
-        <Text style={styles.sectionSubtitle}>Everything you need for sports & pets</Text>
-        <View style={styles.servicesContainer}>
-          {services.map(renderServiceCard)}
+        {/* Services */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>Our Services</Text>
+          <Text style={styles.sectionSubtitle}>Everything you need for sports & pets</Text>
+          <View style={styles.servicesContainer}>
+            {services.map(renderServiceCard)}
+          </View>
         </View>
-      </View>
 
-      {/* Stats Section */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>500+</Text>
-          <Text style={styles.statLabel}>Arenas</Text>
+        {/* Stats Section */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>500+</Text>
+            <Text style={styles.statLabel}>Arenas</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>10K+</Text>
+            <Text style={styles.statLabel}>Players</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>50K+</Text>
+            <Text style={styles.statLabel}>Games</Text>
+          </View>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>10K+</Text>
-          <Text style={styles.statLabel}>Players</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>50K+</Text>
-          <Text style={styles.statLabel}>Games</Text>
-        </View>
-      </View>
 
-      {/* Bottom Spacing */}
-      <View style={styles.bottomSpacing} />
-    </ScrollView>
+        {/* Bottom Spacing */}
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+    </View>
   );
 }
 
@@ -473,8 +505,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 4,
-  },
-  serviceGradient: {
     padding: 16,
   },
   serviceContent: {

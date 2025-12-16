@@ -1,38 +1,45 @@
 // API Configuration for different environments
 
-// --- LOCAL DEVELOPMENT (emulator or USB testing) ---
-const LOCAL_API_URL = "http://192.168.29.41:4000";  // your machine IP
+// --- LOCAL DEVELOPMENT ---
+const LOCAL_API_URL = "http://192.168.29.41:4000";
 
-// --- PRODUCTION BACKEND ON RAILWAY ---
+// --- PRODUCTION BACKEND ---
 const PROD_API_URL = "https://crushitdev-production.up.railway.app";
 
-// Toggle this manually for local development or production
-const USE_LOCAL_API = false;  // Set to false when deploying or testing with Railway backend
+// Manual override ONLY if you want APK to hit local backend
+const FORCE_LOCAL_API = false;
 
-// Auto-switch based on flag
-const API_BASE_URL = USE_LOCAL_API ? LOCAL_API_URL : PROD_API_URL;
+// Expo dev flag (true only in Expo Go / metro)
+const IS_DEV = __DEV__ === true;
+
+// Final base URL selection
+const API_BASE_URL = FORCE_LOCAL_API
+  ? LOCAL_API_URL           // manual override
+  : IS_DEV
+  ? LOCAL_API_URL           // expo dev
+  : PROD_API_URL;           // APK / production
 
 export const API_CONFIG = {
   BASE_URL: API_BASE_URL,
   ENDPOINTS: {
-    // Auth endpoints
+    // Auth
     AUTH_LOGIN: "/auth/login",
     AUTH_SIGNUP: "/auth/signup",
     AUTH_PROFILE: "/auth/profile",
-    
-    // Game endpoints
+
+    // Games
     GAMES: "/api/games",
-    
-    // Player endpoints
+
+    // Players
     PLAYERS: "/api/players",
-    
-    // Booking endpoints
+
+    // Bookings
     BOOKINGS: "/api/bookings",
-    
-    // Match endpoints
+
+    // Matches
     MATCHES: "/api/matches",
   },
 };
 
-// For debugging
+// Debug log (safe)
 console.log("🌐 API Base URL:", API_BASE_URL);
